@@ -6,6 +6,17 @@ This roadmap describes the staged evolution of Kairo from planning to a usable r
 
 The roadmap is divided into phases so that the project grows in a realistic and technically grounded way.
 
+### Comparison: temporal graph retrieval vs common baselines
+
+| Aspect | Naive LLM | Standard RAG | GraphRAG | Kairo temporal graph retrieval |
+| --- | --- | --- | --- | --- |
+| Retrieval target | Entire prompt context; no retrieval | Static text chunks | Graph nodes/relations | Documents, graph paths, and historical states |
+| Temporal awareness | None | None | Limited (current graph) | Explicit time travel with snapshots/deltas |
+| Graph reasoning | None | None | Yes, current graph | Yes, across graph and time |
+| Evidence distillation | None | Minimal ranking | Graph-structured context | Task packet with distilled evidence and gaps |
+| State reconstruction | None | None | Rare/partial | Reconstructs historical state before answering |
+| Provenance | Not available | Chunk citations | Path-level evidence | State IDs, paths, snapshots, and provenance |
+
 ---
 
 ## Phase 0: Architecture and Design
@@ -260,4 +271,4 @@ Extend the core engine into a more mature retrieval platform.
 
 ## Summary
 
-The roadmap is intentionally staged so that StateGraphRAG develops from a clear architecture into a usable engine, then into a robust and extensible platform. The system should first become good at retrieval, state, and reconstruction before it becomes ambitious about complex agent behaviors.
+The roadmap is intentionally staged so that Kairo develops from a clear architecture into a usable engine, then into a robust and extensible platform. The system should first become good at retrieval, state, and reconstruction before it becomes ambitious about complex agent behaviors.

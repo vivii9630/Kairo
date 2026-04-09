@@ -1,8 +1,10 @@
 # Kairo
 
+![Kairo temporal graph retrieval engine](Image/Gemini_Generated_Image_5j6rva5j6rva5j6r.png)
+
 Kairo is a retrieval native engine for building agentic systems over documents, structured databases, and evolving knowledge graphs.
 
-Unlike standard retrieval systems that fetch static chunks and pass them directly to an LLM, StateGraphRAG treats retrieval as the core intelligence of the system. It first understands the task, selects the right retrieval path, reconstructs historical graph or document state when needed, distills the evidence, and only then lets the agent reason and answer.
+Unlike standard retrieval systems that fetch static chunks and pass them directly to an LLM, Kairo treats retrieval as the core intelligence of the system. It first understands the task, selects the right retrieval path, reconstructs historical graph or document state when needed, distills the evidence, and only then lets the agent reason and answer.
 
 The project is designed for problems where truth depends on context, structure, and time.
 
@@ -19,7 +21,7 @@ In many settings:
 - raw retrieval returns too much noisy context
 - systems need evidence, provenance, and historical reconstruction
 
-StateGraphRAG is designed to solve this gap.
+Kairo is designed to solve this gap.
 
 ## Core idea
 
@@ -51,11 +53,11 @@ Every answer should be tied to supporting evidence such as retrieved chunks, SQL
 
 ## What makes this different
 
-StateGraphRAG is not just another multi agent framework.
+Kairo is not just another multi agent framework.
 
-StateGraphRAG is not just another GraphRAG wrapper.
+Kairo is not just another GraphRAG wrapper.
 
-StateGraphRAG is a retrieval native temporal graph reasoning engine.
+Kairo is a retrieval native temporal graph reasoning engine.
 
 The core novelty is that it reasons over state evolution, not only static entities and relations.
 
