@@ -1,8 +1,6 @@
 # Kairo
 
-# StateGraphRAG
-
-StateGraphRAG is a retrieval native engine for building agentic systems over documents, structured databases, and evolving knowledge graphs.
+Kairo is a retrieval native engine for building agentic systems over documents, structured databases, and evolving knowledge graphs.
 
 Unlike standard retrieval systems that fetch static chunks and pass them directly to an LLM, StateGraphRAG treats retrieval as the core intelligence of the system. It first understands the task, selects the right retrieval path, reconstructs historical graph or document state when needed, distills the evidence, and only then lets the agent reason and answer.
 
