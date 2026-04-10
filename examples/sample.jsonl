@@ -1,0 +1,4 @@
+{"id": "doc1", "text": "Graph-based retrieval connects entities and relations.", "metadata": {"source": "note"}}
+{"id": "doc2", "text": "Temporal state reconstruction replays deltas to recover history.", "metadata": {"source": "note"}}
+{"id": "doc3", "text": "Hybrid retrieval mixes lexical, vector, and graph search.", "metadata": {"source": "note"}}
+{"id": "doc4", "text": "Kairo focuses on retrieval-native planning before agent reasoning.", "metadata": {"source": "note"}}

@@ -4,6 +4,30 @@
 
 Kairo is a retrieval native engine for building agentic systems over documents, structured databases, and evolving knowledge graphs.
 
+## Quickstart (local CLI)
+
+```bash
+pip install -e .
+
+# Ingest sample docs
+kairo ingest examples/sample.jsonl
+
+# Run a query locally
+kairo query "How does Kairo handle temporal reconstruction?" --mode local --top-k 3
+```
+
+## Quickstart (hosted client)
+
+```python
+from kairo import HostedClient, QueryRequest
+
+client = HostedClient(base_url="https://your.api", api_key="YOUR_KEY")
+resp = client.query(QueryRequest(query="Explain temporal reconstruction", top_k=3))
+print(resp.answer)
+for ev in resp.evidences:
+    print(ev.document_id, ev.score)
+```
+
 Unlike standard retrieval systems that fetch static chunks and pass them directly to an LLM, Kairo treats retrieval as the core intelligence of the system. It first understands the task, selects the right retrieval path, reconstructs historical graph or document state when needed, distills the evidence, and only then lets the agent reason and answer.
 
 The project is designed for problems where truth depends on context, structure, and time.

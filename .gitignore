@@ -1,0 +1,10 @@
+.venv/
+.kairo_store.json
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.DS_Store
+Thumbs.db
+tests/
