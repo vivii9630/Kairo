@@ -167,10 +167,6 @@ Set `max_steps` in [`flow.FlowGraph.run`](src/kairo/flow.py:31) to bound loops.
 - Requests use [`models.QueryRequest`](src/kairo/models.py:21) with `query`, `top_k`, optional `filters`, and `time_hint`.
 - Responses are [`models.QueryResponse`](src/kairo/models.py:39) containing `answer`, ranked `evidences`, and `steps` (planner, retriever, responder). The CLI prints steps for transparency.
 
-## Testing
-```bash
-pip install -e ".[dev]"
-pytest
-```
+
 
 Use the CLI or SDK examples above as templates for your own ingestion, RAG, and agentic retrieval loops.
