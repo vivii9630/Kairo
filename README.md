@@ -2,163 +2,175 @@
 
 ![Kairo temporal graph retrieval engine](Image/Gemini_Generated_Image_5j6rva5j6rva5j6r.png)
 
-Kairo is a retrieval native engine for building agentic systems over documents, structured databases, and evolving knowledge graphs.
+Kairo is a retrieval-native engine for building agentic systems over documents, structured databases, and evolving knowledge graphs. It plans retrieval before generation, reconstructs temporal or graph state when answers depend on time or topology, and returns evidence-grounded responses.
 
-## Quickstart (local CLI)
+## Table of contents
+- [What is Kairo](#what-is-kairo)
+- [Installation](#installation)
+- [Quickstart (CLI)](#quickstart-cli)
+- [Quickstart (Python SDK)](#quickstart-python-sdk)
+- [Data ingestion & RAG](#data-ingestion--rag)
+- [Agents & multi-agent flows](#agents--multi-agent-flows)
+- [Response structure](#response-structure)
+- [Testing](#testing)
+
+## What is Kairo
+- **Retrieval-native**: plans how to retrieve (lexical, vector, graph, hybrid, temporal) before any generation.
+- **Temporal + graph aware**: can reconstruct historical document or graph state when truth depends on time or topology.
+- **Evidence grounded**: every answer is tied to ranked evidences and execution steps for transparency.
+
+## Installation
+Requires Python 3.9+.
 
 ```bash
+pip install -e .
+
+# (optional) dev tooling
+pip install -e ".[dev]"
+```
+
+## Quickstart (CLI)
+The Typer CLI entrypoint lives in [`cli.app`](src/kairo/cli.py:16). A lightweight local store is persisted to `.kairo_store.json`.
+
+**Local mode**
+```bash
+# Install
 pip install -e .
 
 # Ingest sample docs
 kairo ingest examples/sample.jsonl
 
-# Run a query locally
+# Query locally
 kairo query "How does Kairo handle temporal reconstruction?" --mode local --top-k 3
 ```
 
-## Quickstart (hosted client)
+**Hosted mode**
+```bash
+kairo query "Explain temporal reconstruction" \
+  --mode hosted \
+  --base-url https://your.api \
+  --api-key YOUR_KEY \
+  --top-k 3
+```
+
+## Quickstart (Python SDK)
+
+### Local pipeline
+[`local.LocalPipeline`](src/kairo/local.py:24) provides a minimal local RAG pipeline with persistence.
 
 ```python
-from kairo import HostedClient, QueryRequest
+from kairo.local import LocalPipeline
+from kairo.models import Document, QueryRequest
 
-client = HostedClient(base_url="https://your.api", api_key="YOUR_KEY")
-resp = client.query(QueryRequest(query="Explain temporal reconstruction", top_k=3))
+pipeline = LocalPipeline(store_path=".kairo_store.json")
+
+pipeline.ingest_documents([
+    Document(id="note-1", text="Temporal graphs capture evolving states."),
+    Document(id="note-2", text="Retrieval planning precedes generation."),
+])
+
+resp = pipeline.query(QueryRequest(query="How does Kairo answer over time?", top_k=3))
 print(resp.answer)
 for ev in resp.evidences:
     print(ev.document_id, ev.score)
 ```
 
-Unlike standard retrieval systems that fetch static chunks and pass them directly to an LLM, Kairo treats retrieval as the core intelligence of the system. It first understands the task, selects the right retrieval path, reconstructs historical graph or document state when needed, distills the evidence, and only then lets the agent reason and answer.
+### Hosted client
+Use [`client.HostedClient`](src/kairo/client.py:10) against your deployed API.
 
-The project is designed for problems where truth depends on context, structure, and time.
+```python
+from kairo.client import HostedClient
+from kairo.models import QueryRequest
 
-## Why this project exists
+client = HostedClient(base_url="https://your.api", api_key="YOUR_KEY")
+resp = client.query(QueryRequest(query="Explain temporal reconstruction", top_k=3))
+print(resp.answer)
+client.close()
+```
 
-Most current agent frameworks are strong at orchestration, tool calling, and workflow design. Most current RAG systems are strong at static retrieval over text. However, real enterprise and research systems often require more than that.
+## Data ingestion & RAG
+Ingestion helpers in [`ingest.py`](src/kairo/ingest.py:17) cover text, JSONL, CSV, Excel, PDF, DOCX, and audio metadata. The CLI command [`cli.ingest`](src/kairo/cli.py:19) routes to [`ingest.ingest_any`](src/kairo/ingest.py:86), which loads:
+- Text via [`ingest.ingest_text_file`](src/kairo/ingest.py:17)
+- JSONL via [`ingest.ingest_jsonl`](src/kairo/ingest.py:22)
+- CSV via [`ingest.ingest_csv`](src/kairo/ingest.py:33)
+- Excel via [`ingest.ingest_excel`](src/kairo/ingest.py:44)
+- PDF via [`ingest.ingest_pdf`](src/kairo/ingest.py:61)
+- DOCX via [`ingest.ingest_docx`](src/kairo/ingest.py:73)
+- Audio metadata via [`ingest.ingest_audio`](src/kairo/ingest.py:79)
 
-In many settings:
+CLI ingestion examples:
+```bash
+# JSONL
+kairo ingest examples/sample.jsonl
 
-- documents change over time
-- graph relationships evolve
-- users ask what was true at a particular point in time
-- answers depend on graph structure, not only text similarity
-- raw retrieval returns too much noisy context
-- systems need evidence, provenance, and historical reconstruction
+# CSV / Excel
+kairo ingest path/to/file.csv
+kairo ingest path/to/file.xlsx
 
-Kairo is designed to solve this gap.
+# PDF / DOCX / audio
+kairo ingest path/to/report.pdf
+kairo ingest path/to/notes.docx
+kairo ingest path/to/audio.wav
+```
 
-## Core idea
+Programmatic ingestion for custom flows:
+```python
+from pathlib import Path
+from kairo.ingest import ingest_any
+from kairo.local import LocalPipeline
 
-The system follows this flow:
+pipeline = LocalPipeline()
+pipeline.ingest_documents(ingest_any(Path("examples/sample.jsonl")))
+```
 
-`Query -> Task Understanding -> Retrieval Planning -> Evidence Retrieval -> Temporal or Graph Reconstruction -> Context Distillation -> Agent Reasoning -> Grounded Answer`
+RAG retrieval is currently lexical TF-based (placeholder) inside [`local.LocalPipeline._retrieve`](src/kairo/local.py:55). You can filter by metadata through [`models.QueryRequest`](src/kairo/models.py:21) `filters` and control breadth with `top_k`.
 
-This makes the engine retrieval native rather than agent first.
+## Agents & multi-agent flows
 
-## Main capabilities
+- **Single-call orchestration**: [`agents.MultiAgentOrchestrator`](src/kairo/agents.py:9) is a façade wrapping a pipeline and returning a [`models.QueryResponse`](src/kairo/models.py:39).
 
-### Task oriented retrieval
-The engine understands the task before retrieving. It decides whether the request is best answered through lexical search, vector search, SQL retrieval, graph traversal, hybrid retrieval, or temporal reconstruction.
+```python
+from kairo.agents import MultiAgentOrchestrator
 
-### Context distillation
-The engine does not pass large unfiltered retrieval results to the agent. It compresses evidence into a task packet containing the most relevant facts, graph paths, rows, contradictions, gaps, and supporting context.
+orchestrator = MultiAgentOrchestrator()
+resp = orchestrator.run("Summarize how Kairo handles temporal reconstruction", top_k=3)
+print(resp.answer)
+```
 
-### Graph reasoning
-The system supports graph aware retrieval and reasoning over entities, relations, paths, neighborhoods, and multi hop structure.
+- **Multi-agent loop / graph execution**: [`flow.FlowGraph`](src/kairo/flow.py:21) and [`flow.FlowNode`](src/kairo/flow.py:9) let you wire cyclic graphs. Nodes can call retrieval, critique, or transformation and branch to next nodes. A simple looping example:
 
-### Temporal state retrieval
-The system stores meaningful historical states of documents or subgraphs with version aware identifiers and embeddings, so retrieval can target what was semantically true at a specific time.
+```python
+from kairo.flow import FlowGraph, FlowNode, retrieval_node
+from kairo.models import QueryRequest
 
-### Graph reconstruction
-The engine can traverse historical state links, load snapshots or replay deltas, rebuild the relevant graph or document state, and answer from that recovered historical truth.
+graph = FlowGraph()
 
-### Evidence grounded answering
-Every answer should be tied to supporting evidence such as retrieved chunks, SQL rows, graph paths, state identifiers, or reconstructed snapshots.
+# Step 1: retrieve
+graph.add_node(retrieval_node("retriever"))
 
-## What makes this different
+# Step 2: trivial critic that re-queries once, then stops
+def critic(req, pipeline):
+    return pipeline.query(req)
 
-Kairo is not just another multi agent framework.
+graph.add_node(FlowNode(name="critic", run=critic, next_nodes=["retriever"]))
 
-Kairo is not just another GraphRAG wrapper.
+# Wire a small cycle: retriever -> critic -> retriever (bounded by max_steps)
+graph.nodes["retriever"].next_nodes = ["critic"]
 
-Kairo is a retrieval native temporal graph reasoning engine.
+resp = graph.run(start="retriever", request=QueryRequest(query="Trace temporal state", top_k=2), max_steps=4)
+print(resp.answer)
+```
 
-The core novelty is that it reasons over state evolution, not only static entities and relations.
+Set `max_steps` in [`flow.FlowGraph.run`](src/kairo/flow.py:31) to bound loops.
 
-## The seven core components
+## Response structure
+- Requests use [`models.QueryRequest`](src/kairo/models.py:21) with `query`, `top_k`, optional `filters`, and `time_hint`.
+- Responses are [`models.QueryResponse`](src/kairo/models.py:39) containing `answer`, ranked `evidences`, and `steps` (planner, retriever, responder). The CLI prints steps for transparency.
 
-### 1. Agent Orchestration Layer
-Coordinates agents, workflows, handoffs, retries, approvals, and final response assembly.
+## Testing
+```bash
+pip install -e ".[dev]"
+pytest
+```
 
-### 2. Connector and Tool Gateway
-Provides unified access to relational databases, graph stores, vector stores, files, APIs, cloud storage, and external tools.
-
-### 3. Task Oriented Retrieval and Context Distillation Engine
-Classifies the task, selects the retrieval path, ranks and filters evidence, and produces a compact task packet.
-
-### 4. Knowledge Index and Versioned State Store
-Stores chunked documents, embeddings, metadata indexes, graph entities, relations, state versions, snapshots, and delta chains.
-
-### 5. Graph Reasoning and Temporal State Reconstruction Engine
-Supports graph traversal, state history navigation, snapshot loading, delta replay, and time aware reasoning.
-
-### 6. Memory and Evidence Layer
-Stores session context, retrieved evidence, intermediate results, graph paths, citations, and provenance.
-
-### 7. Governance, Observability, and Evaluation Layer
-Supports tracing, permissions, auditing, cost tracking, latency tracking, retrieval evaluation, and regression testing.
-
-## Main novelty
-
-### Temporal State Retrieval with Graph Reconstruction
-
-Each meaningful document or graph state is stored with:
-
-- a `history_id`
-- a semantic embedding for that state
-- a snapshot reference or delta chain
-- temporal metadata
-- graph links to previous and next states
-
-At retrieval time, the system can:
-
-- find the right historical state semantically
-- traverse the history graph
-- reconstruct the graph or document at that time
-- distill the relevant evidence
-- answer based on that recovered historical truth
-
-This is stronger than plain GraphRAG because it reasons over state evolution, not only static entities and relations.
-
-## Example questions the engine should answer
-
-- What was the graph state before the facility update?
-- Which policy version was active in March 2025?
-- How did this entity relationship change between two versions?
-- Which upstream and downstream assets were connected at that historical state?
-- What evidence supports the answer at that time rather than now?
-
-## Proposed repository structure
-
-```text
-stategraphrag/
-├── README.md
-├── pyproject.toml
-├── .env.example
-├── LICENSE
-├── CONTRIBUTING.md
-├── docs/
-│   ├── temporal_state_graph_reconstruction.md
-│   ├── planning.md
-│   ├── roadmap.md
-│   └── milestones.md
-├── stategraphrag/
-│   ├── agents/
-│   ├── connectors/
-│   ├── retrieval/
-│   ├── state_store/
-│   ├── graph/
-│   ├── memory/
-│   ├── observability/
-│   └── api/
-└── tests/
+Use the CLI or SDK examples above as templates for your own ingestion, RAG, and agentic retrieval loops.
