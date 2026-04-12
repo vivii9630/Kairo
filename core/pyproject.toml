@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-core"
+version = "0.1.0"
+description = "Kairo core: shared types (Document, Message, Evidence, Query) used across all Kairo subpackages."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pydantic>=2.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

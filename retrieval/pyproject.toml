@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-retrieval"
+version = "0.1.0"
+description = "Kairo retrieval: local lexical pipeline + hosted HTTP client. Vector/graph/hybrid land here."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Heavy ingestion adapters are optional; only needed if you want LocalPipeline
+# to load files directly via ingest_paths().
+ingest = ["kairo-ingest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

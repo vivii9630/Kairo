@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-rag"
+version = "0.1.0"
+description = "Kairo RAG: retrieval-augmented patterns (plain, hybrid, temporal) built on kairo-agents and kairo-retrieval."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+    "kairo-agents",
+    "kairo-retrieval",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-cli"
+version = "0.1.0"
+description = "Kairo CLI: ingest documents and run queries (local or hosted mode)."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+    "kairo-ingest",
+    "kairo-retrieval",
+    "typer>=0.12",
+    "rich>=13.7",
+]
+
+[project.scripts]
+kairo = "kairo_cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

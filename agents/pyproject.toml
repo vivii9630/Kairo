@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-agents"
+version = "0.1.0"
+description = "Kairo agents: create agents, wire inter-agent communication, delegate to subagents, observe reasoning via verbose mode."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
