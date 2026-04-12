@@ -1,8 +1,22 @@
+<div align="center">
+
 # Kairo
+
+**A retrieval-native temporal engine for agents, RAG, and evolving knowledge graphs.**
+
+[Repository](https://github.com/vivii9630/Kairo) · [Documentation](docs/) · [Issues](https://github.com/vivii9630/Kairo/issues) · [License](LICENSE)
+
+[![GitHub stars](https://img.shields.io/github/stars/vivii9630/Kairo?style=flat&logo=github)](https://github.com/vivii9630/Kairo/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/vivii9630/Kairo?style=flat&logo=github)](https://github.com/vivii9630/Kairo/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/vivii9630/Kairo)](https://github.com/vivii9630/Kairo/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/vivii9630/Kairo)](https://github.com/vivii9630/Kairo/pulls)
+[![License: MIT](https://img.shields.io/github/license/vivii9630/Kairo)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Status](https://img.shields.io/badge/status-alpha-orange)](https://github.com/vivii9630/Kairo)
 
 ![Kairo temporal graph retrieval engine](Image/Gemini_Generated_Image_5j6rva5j6rva5j6r.png)
 
-**A retrieval-native temporal engine for agents, RAG, and evolving knowledge graphs.**
+</div>
 
 Kairo is a Python framework for building agentic systems that reason over documents, structured databases, and knowledge that changes over time. Unlike retrieval stacks bolted onto an agent loop, Kairo plans retrieval *before* the agent runs — across lexical, vector, graph, and temporal paths — and hands the agent evidence-first task packets with full provenance.
 
