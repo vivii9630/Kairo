@@ -2,11 +2,19 @@
 
 from .models import (
     AgentStep,
+    BranchRef,
     Document,
     Evidence,
+    GraphData,
+    GraphDiff,
+    GraphEdge,
+    GraphNode,
+    HistoryNode,
     QueryRequest,
     QueryResponse,
     RetrievalResult,
+    Snapshot,
+    TemporalQuery,
 )
 from .message import Message
 
@@ -18,4 +26,12 @@ __all__ = [
     "RetrievalResult",
     "AgentStep",
     "Message",
+    "GraphNode",
+    "GraphEdge",
+    "GraphData",
+    "GraphDiff",
+    "Snapshot",
+    "HistoryNode",
+    "BranchRef",
+    "TemporalQuery",
 ]

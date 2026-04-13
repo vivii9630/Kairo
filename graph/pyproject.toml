@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-graph"
+version = "0.1.0"
+description = "Kairo graph: GraphBuilder protocol, KairoGraph (NetworkX-backed) with deterministic hashing and JSON round-trip, plus per-content-type builders."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+    "networkx>=3.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
