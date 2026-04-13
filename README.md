@@ -49,44 +49,88 @@ Kairo ships as a set of **independent, composable packages**. Install only what 
 
 ## Architecture
 
+Kairo is organized as a **layered stack of independent packages**. Each layer depends only on the ones below it; each package in a layer can be installed and worked on in isolation.
+
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                          kairo (meta)                          │
-└────────────────────────────────────────────────────────────────┘
-            │
-   ┌────────┼────────────────────────────────────────┐
-   ▼        ▼                                        ▼
-┌──────┐ ┌──────────┐ ┌──────────┐ ┌─────┐ ┌──────┐ ┌────────────┐
-│ core │ │ retrieval│ │  ingest  │ │ rag │ │ flow │ │ connectors │
-└──────┘ └──────────┘ └──────────┘ └─────┘ └──────┘ └────────────┘
-            │              │         │       │
-            └──────────────┴─────────┴───────┘
-                         │
-                    ┌────┴────┐
-                    ▼         ▼
-                ┌────────┐ ┌──────┐
-                │ agents │ │ edge │
-                └────────┘ └──────┘
-                    │
-                    ▼
-                ┌──────┐
-                │ cli  │
-                └──────┘
+┌────────────┬──────────────────────────────────────────────────────────┐
+│  apps      │  kairo (meta)  ·  kairo-cli  ·  kairo-ui (planned)       │
+├────────────┼──────────────────────────────────────────────────────────┤
+│  patterns  │  kairo-rag  ·  kairo-flow  ·  kairo-agents               │
+├────────────┼──────────────────────────────────────────────────────────┤
+│  temporal  │  kairo-temporal  ·  kairo-embeddings  ·  kairo-graph     │
+├────────────┼──────────────────────────────────────────────────────────┤
+│  io        │  kairo-retrieval  ·  kairo-ingest  ·  kairo-connectors   │
+├────────────┼──────────────────────────────────────────────────────────┤
+│  foundation│  kairo-core                             kairo-edge (alt) │
+└────────────┴──────────────────────────────────────────────────────────┘
 ```
 
-| Package | Purpose | Depends on |
-|---|---|---|
-| [`kairo-core`](core/) | Shared types: `Document`, `Message`, `Evidence`, `Query` | — |
-| [`kairo-ingest`](ingest/) | Multi-format loaders (txt, jsonl, csv, xlsx, pdf, docx, audio) | core |
-| [`kairo-retrieval`](retrieval/) | Local lexical pipeline + hosted HTTP client; vector/graph/hybrid land here | core |
-| [`kairo-agents`](agents/) | Agents, inter-agent messaging, subagent delegation, verbose reasoning | core |
-| [`kairo-rag`](rag/) | RAG patterns: plain, hybrid, temporal | core, agents, retrieval |
-| [`kairo-flow`](flow/) | Directed-graph runner for agent/tool steps (cycles supported) | core, retrieval |
-| [`kairo-connectors`](connectors/) | Adapters for external sources (S3, Notion, web, Slack, ...) | core |
-| [`kairo-cli`](cli/) | `kairo` command for ingest + query | core, ingest, retrieval |
-| [`kairo-edge`](edge/) | ARM / mobile build — pure-Python, zero heavy deps | core |
+| Package | Purpose | Depends on | Status |
+|---|---|---|---|
+| [`kairo-core`](core/) | Shared types (`Document`, `Message`, `Evidence`, `QueryRequest`, `Snapshot`, `HistoryNode`, `GraphDiff`, `TemporalQuery`, …) | — | ✅ shipped |
+| [`kairo-ingest`](ingest/) | Multi-format loaders (txt, jsonl, csv, xlsx, pdf, docx, audio) | core | ✅ shipped |
+| [`kairo-retrieval`](retrieval/) | Local lexical pipeline + hosted HTTP client; vector/graph/hybrid land here | core | ✅ shipped |
+| [`kairo-connectors`](connectors/) | Adapters for external sources (S3, Notion, web, Slack, **GitHub URL — planned**) | core | ✅ shipped |
+| [`kairo-graph`](graph/) | `GraphBuilder` protocol, NetworkX-backed `KairoGraph` with deterministic SHA-256 hashing and JSON round-trip, per-content-type builders | core | 🟡 **alpha (Phase 1)** |
+| [`kairo-embeddings`](embeddings/) | Pluggable `EmbeddingProvider` registry (hash-stub, sentence-transformers, OpenAI, Cohere, Voyage, Bedrock), `EmbeddingStore` with cosine top-k | core | ⏳ planned (Phase 2) |
+| [`kairo-temporal`](temporal/) | `HistoryGraph` (branching DAG of snapshots), rollback, walk, diff — owns the `.kairo/` filesystem layout | core, graph, embeddings | ⏳ planned (Phase 3) |
+| [`kairo-rag`](rag/) | RAG patterns: plain, hybrid, **temporal** (`TemporalRAG` orchestrator lands here in Phase 6) | core, agents, retrieval | ✅ shipped |
+| [`kairo-flow`](flow/) | Directed-graph runner for agent/tool steps (cycles supported) | core, retrieval | ✅ shipped |
+| [`kairo-agents`](agents/) | Agents, inter-agent messaging, subagent delegation, verbose reasoning | core | ✅ shipped |
+| [`kairo-cli`](cli/) | `kairo` command: ingest, query, and upcoming temporal commands (`init`, `snapshot`, `ask`, `log`, `rollback`, `branch`) | core, ingest, retrieval | ✅ shipped |
+| [`kairo-edge`](edge/) | ARM / mobile build — pure-Python, zero heavy deps | core | ✅ shipped |
+| [`kairo-ui`](ui/) | Local `kairo serve` + D3.js visualization of current graph and history-DAG evolution, reading from `.kairo/` | core, temporal | ⏳ planned (Phase 9) |
+| `kairo-auth` | Credential broker for embedding / LLM / connector providers; other packages pull keys from here | core | 🔒 reserved (future) |
 
 Each package lives in its own directory with its own `pyproject.toml` and `README.md`, so you can work on, commit, and publish them independently.
+
+---
+
+## Temporal RAG engine *(in build)*
+
+Kairo is being extended with a **temporal RAG engine** that turns any project directory — docs, CSVs, source code, or a GitHub URL — into a durable, time-aware knowledge base. Point Kairo at a folder, and every time the content changes it writes a new versioned snapshot of the knowledge graph into a local `.kairo/` directory. Agents can then query the current state, roll back to any prior point in time, branch off alternate histories, or ask "what changed between these two versions?"
+
+### Design at a glance
+
+- **Snapshots, not deltas.** Each version of the knowledge graph is persisted as a full, addressable snapshot. Embeddings index those snapshots for semantic lookup — they are never used to reconstruct a graph (embeddings are lossy; snapshots are the source of truth).
+- **Branching history DAG.** `Snapshot.parents: List[str]` from day one, so merges and forks are first-class. Git-shaped: `HEAD`, `refs/branches/`, an append-only history index.
+- **Pluggable embeddings.** Users pick their provider (hash-stub, sentence-transformers, OpenAI, Cohere, Voyage, Bedrock, …) via a single `get_provider(name, …)` registry. A `Credentials` seam is designed in on day one so the planned `kairo-auth` package can broker API keys across all tools without breaking callers.
+- **`.kairo/` is the source of truth.** No browser cache, no session-scoped storage — temporal guarantees require durable state on disk.
+
+### `.kairo/` directory layout *(git-shaped)*
+
+```
+project-root/
+├── src/, docs/, data.csv, README.md, ...
+└── .kairo/
+    ├── config.toml          # history_graph_id, embedding provider, branch policy
+    ├── HEAD                 # current branch ref, e.g. "refs/branches/main"
+    ├── refs/
+    │   └── branches/
+    │       ├── main         # -> snapshot_id
+    │       └── experiment   # -> snapshot_id
+    ├── history.json         # DAG: snapshot_id -> { parents: [...], timestamp, message }
+    ├── snapshots/
+    │   └── <snapshot_id>.json   # serialized KairoGraph + metadata
+    └── embeddings/
+        └── <snapshot_id>.npy    # embedding matrix aligned to graph nodes
+```
+
+### Phased build plan
+
+| Phase | Scope | Package(s) | Status |
+|---|---|---|---|
+| 1 | Core temporal types + `KairoGraph` + `DocumentGraphBuilder` + round-trip | `kairo-core`, `kairo-graph` | ✅ shipped |
+| 2 | Pluggable `EmbeddingProvider` + registry + `EmbeddingStore` | `kairo-embeddings` | ⏳ next |
+| 3 | `HistoryGraph`, snapshots, rollback, `.kairo/` filesystem store | `kairo-temporal` | ⏳ planned |
+| 4 | GitHub URL connector (clone → hand off to ingest) | `kairo-connectors` | ⏳ planned |
+| 5 | Per-type graph builders (code AST, tabular rows/cols/FKs) | `kairo-graph` | ⏳ planned |
+| 6 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ planned |
+| 7 | Historian agent + prebuilt temporal flow presets | `kairo-agents`, `kairo-flow` | ⏳ planned |
+| 8 | CLI: `kairo init / snapshot / ask / log / rollback / branch` | `kairo-cli` | ⏳ planned |
+| 9 | Local server + D3.js graph and history-timeline visualization | `kairo-ui` | ⏳ planned |
+
+Each phase lands as a package-scoped commit so phases can be released, revisited, or contributed to independently.
 
 ---
 
@@ -237,15 +281,19 @@ print(resp.answer)
 
 ```
 Kairo/
-├── core/          # kairo-core         — shared types
+├── core/          # kairo-core         — shared types (incl. temporal: Snapshot, HistoryNode, ...)
 ├── ingest/        # kairo-ingest       — document loaders
 ├── retrieval/     # kairo-retrieval    — local + hosted retrieval
-├── agents/        # kairo-agents       — agents & messaging
-├── rag/           # kairo-rag          — RAG patterns
-├── flow/          # kairo-flow         — directed-graph runner
 ├── connectors/    # kairo-connectors   — external source adapters
+├── graph/         # kairo-graph        — GraphBuilder + NetworkX KairoGraph + hashing   (Phase 1)
+├── embeddings/    # kairo-embeddings   — pluggable providers + store                    (Phase 2)
+├── temporal/      # kairo-temporal     — history DAG, snapshots, rollback, .kairo/      (Phase 3)
+├── rag/           # kairo-rag          — RAG patterns (plain, hybrid, temporal)
+├── flow/          # kairo-flow         — directed-graph runner
+├── agents/        # kairo-agents       — agents & messaging
 ├── cli/           # kairo-cli          — command-line interface
 ├── edge/          # kairo-edge         — ARM / mobile minimal build
+├── ui/            # kairo-ui           — local server + D3 visualization                (Phase 9)
 ├── src/kairo/     # kairo              — meta package / SDK facade
 ├── examples/
 └── pyproject.toml # meta package
