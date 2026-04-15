@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-embeddings"
+version = "0.1.0"
+description = "Kairo embeddings: pluggable EmbeddingProvider registry (hash-stub default; sentence-transformers / OpenAI / Cohere / Voyage / Bedrock via optional extras) and EmbeddingStore with cosine top-k search."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+sentence-transformers = ["sentence-transformers>=2.2"]
+openai = ["openai>=1.0"]
+cohere = ["cohere>=5.0"]
+voyage = ["voyageai>=0.2"]
+bedrock = ["boto3>=1.34"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
