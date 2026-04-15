@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kairo-temporal"
+version = "0.1.0"
+description = "Temporal engine for Kairo — branching history DAG of graph snapshots, diff, rollback, walk."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Kairo contributors" }]
+dependencies = [
+    "kairo-core",
+    "kairo-graph",
+    "kairo-embeddings",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kairo_temporal"]
