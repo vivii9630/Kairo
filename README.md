@@ -53,7 +53,7 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 
 ```
 ┌────────────┬──────────────────────────────────────────────────────────┐
-│  apps      │  kairo (meta)  ·  kairo-cli  ·  kairo-ui (planned)       │
+│  apps      │  kairo (meta) · kairo-cli · kairo-ai · kairo-ui (planned)│
 ├────────────┼──────────────────────────────────────────────────────────┤
 │  patterns  │  kairo-rag  ·  kairo-flow  ·  kairo-agents               │
 ├────────────┼──────────────────────────────────────────────────────────┤
@@ -70,16 +70,17 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 | [`kairo-core`](core/) | Shared types (`Document`, `Message`, `Evidence`, `QueryRequest`, `Snapshot`, `HistoryNode`, `GraphDiff`, `TemporalQuery`, …) | — | ✅ shipped |
 | [`kairo-ingest`](ingest/) | Multi-format loaders (txt, jsonl, csv, xlsx, pdf, docx, audio) | core | ✅ shipped |
 | [`kairo-retrieval`](retrieval/) | Local lexical pipeline + hosted HTTP client; vector/graph/hybrid land here | core | ✅ shipped |
-| [`kairo-connectors`](connectors/) | Adapters for external sources (S3, Notion, web, Slack, **GitHub URL — planned**) | core | ✅ shipped |
-| [`kairo-graph`](graph/) | `GraphBuilder` protocol, NetworkX-backed `KairoGraph` with deterministic SHA-256 hashing and JSON round-trip, per-content-type builders | core | 🟡 **alpha (Phase 1)** |
-| [`kairo-embeddings`](embeddings/) | Pluggable `EmbeddingProvider` registry (hash-stub, sentence-transformers, OpenAI, Cohere, Voyage, Bedrock), `EmbeddingStore` with cosine top-k | core | ⏳ planned (Phase 2) |
-| [`kairo-temporal`](temporal/) | `HistoryGraph` (branching DAG of snapshots), rollback, walk, diff — owns the `.kairo/` filesystem layout | core, graph, embeddings | ⏳ planned (Phase 3) |
-| [`kairo-rag`](rag/) | RAG patterns: plain, hybrid, **temporal** (`TemporalRAG` orchestrator lands here in Phase 6) | core, agents, retrieval | ✅ shipped |
+| [`kairo-connectors`](connectors/) | Adapters for external sources via the `ConnectorPlugin` protocol (S3, Notion, web, Slack, GitHub URL, …) | core | ✅ shipped · GitHub plugin in build (Phase 4) |
+| [`kairo-graph`](graph/) | `GraphBuilder` protocol, NetworkX-backed `KairoGraph` with deterministic SHA-256 hashing and JSON round-trip, per-content-type builders | core | ✅ shipped (Phase 1) |
+| [`kairo-embeddings`](embeddings/) | Pluggable `EmbeddingProvider` registry (hash-stub, sentence-transformers, OpenAI, Cohere, Voyage, Bedrock), `EmbeddingStore` with cosine top-k | core | ✅ shipped (Phase 2) |
+| [`kairo-temporal`](temporal/) | `HistoryGraph` (branching DAG of snapshots), rollback, walk, diff — owns the `.kairo/` filesystem layout | core, graph, embeddings | ✅ shipped (Phase 3) |
+| [`kairo-rag`](rag/) | RAG patterns: plain, hybrid, **temporal** (`TemporalRAG` orchestrator lands here in Phase 7) | core, agents, retrieval | ✅ shipped |
 | [`kairo-flow`](flow/) | Directed-graph runner for agent/tool steps (cycles supported) | core, retrieval | ✅ shipped |
-| [`kairo-agents`](agents/) | Agents, inter-agent messaging, subagent delegation, verbose reasoning | core | ✅ shipped |
+| [`kairo-agents`](agents/) | Agents, inter-agent messaging, subagent delegation, verbose reasoning; supervisor multi-agent + Kairo-native tool-use lands in Phase 8 | core | ✅ shipped |
 | [`kairo-cli`](cli/) | `kairo` command: ingest, query, and upcoming temporal commands (`init`, `snapshot`, `ask`, `log`, `rollback`, `branch`) | core, ingest, retrieval | ✅ shipped |
 | [`kairo-edge`](edge/) | ARM / mobile build — pure-Python, zero heavy deps | core | ✅ shipped |
-| [`kairo-ui`](ui/) | Local `kairo serve` + D3.js visualization of current graph and history-DAG evolution, reading from `.kairo/` | core, temporal | ⏳ planned (Phase 9) |
+| `kairo-ai` | Backend orchestration for the **Kairo AI** product: plugin registry, session state, `ask()` API, FastAPI service composing connectors + engine + agents | core, connectors, temporal, agents | ⏳ planned (Phase 9) |
+| [`kairo-ui`](ui/) | Perplexity-shaped frontend: chat + plugin picker + D3 graph viz + history timeline; talks to `kairo-ai` over HTTP | kairo-ai | ⏳ planned (Phase 10) |
 | `kairo-auth` | Credential broker for embedding / LLM / connector providers; other packages pull keys from here | core | 🔒 reserved (future) |
 
 Each package lives in its own directory with its own `pyproject.toml` and `README.md`, so you can work on, commit, and publish them independently.
@@ -121,14 +122,15 @@ project-root/
 | Phase | Scope | Package(s) | Status |
 |---|---|---|---|
 | 1 | Core temporal types + `KairoGraph` + `DocumentGraphBuilder` + round-trip | `kairo-core`, `kairo-graph` | ✅ shipped |
-| 2 | Pluggable `EmbeddingProvider` + registry + `EmbeddingStore` | `kairo-embeddings` | ⏳ next |
-| 3 | `HistoryGraph`, snapshots, rollback, `.kairo/` filesystem store | `kairo-temporal` | ⏳ planned |
-| 4 | GitHub URL connector (clone → hand off to ingest) | `kairo-connectors` | ⏳ planned |
+| 2 | Pluggable `EmbeddingProvider` + registry + `EmbeddingStore` | `kairo-embeddings` | ✅ shipped |
+| 3 | `HistoryGraph`, snapshots, rollback, `.kairo/` filesystem store | `kairo-temporal` | ✅ shipped |
+| 4 | `ConnectorPlugin` protocol + GitHub URL connector (shallow clone → hand off to ingest) | `kairo-connectors` | ⏳ next |
 | 5 | Per-type graph builders (code AST, tabular rows/cols/FKs) | `kairo-graph` | ⏳ planned |
-| 6 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ planned |
-| 7 | Historian agent + prebuilt temporal flow presets | `kairo-agents`, `kairo-flow` | ⏳ planned |
-| 8 | CLI: `kairo init / snapshot / ask / log / rollback / branch` | `kairo-cli` | ⏳ planned |
-| 9 | Local server + D3.js graph and history-timeline visualization | `kairo-ui` | ⏳ planned |
+| 6 | Second connector (Google/web) to validate the plugin protocol generalizes | `kairo-connectors` | ⏳ planned |
+| 7 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ planned |
+| 8 | Supervisor multi-agent + **Kairo-native dict-based tool-use protocol** | `kairo-agents`, `kairo-flow` | ⏳ planned |
+| 9 | Backend orchestration: plugin registry, session state, `ask()` API, FastAPI service | `kairo-ai` | ⏳ planned |
+| 10 | Perplexity-shaped frontend: chat + plugin picker + D3 graph viz + history timeline | `kairo-ui` | ⏳ planned |
 
 Each phase lands as a package-scoped commit so phases can be released, revisited, or contributed to independently.
 
@@ -284,16 +286,16 @@ Kairo/
 ├── core/          # kairo-core         — shared types (incl. temporal: Snapshot, HistoryNode, ...)
 ├── ingest/        # kairo-ingest       — document loaders
 ├── retrieval/     # kairo-retrieval    — local + hosted retrieval
-├── connectors/    # kairo-connectors   — external source adapters
-├── graph/         # kairo-graph        — GraphBuilder + NetworkX KairoGraph + hashing   (Phase 1)
-├── embeddings/    # kairo-embeddings   — pluggable providers + store                    (Phase 2)
-├── temporal/      # kairo-temporal     — history DAG, snapshots, rollback, .kairo/      (Phase 3)
+├── connectors/    # kairo-connectors   — external source adapters (ConnectorPlugin protocol)
+├── graph/         # kairo-graph        — GraphBuilder + NetworkX KairoGraph + hashing
+├── embeddings/    # kairo-embeddings   — pluggable providers + store
+├── temporal/      # kairo-temporal     — history DAG, snapshots, rollback, .kairo/
 ├── rag/           # kairo-rag          — RAG patterns (plain, hybrid, temporal)
 ├── flow/          # kairo-flow         — directed-graph runner
 ├── agents/        # kairo-agents       — agents & messaging
 ├── cli/           # kairo-cli          — command-line interface
 ├── edge/          # kairo-edge         — ARM / mobile minimal build
-├── ui/            # kairo-ui           — local server + D3 visualization                (Phase 9)
+├── ui/            # kairo-ui           — Perplexity-shaped frontend                     (Phase 10, planned)
 ├── src/kairo/     # kairo              — meta package / SDK facade
 ├── examples/
 └── pyproject.toml # meta package
