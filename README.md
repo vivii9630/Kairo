@@ -276,7 +276,7 @@ npm run dev   # http://localhost:3000
 
 The plugin picker is wired to the live connector registry — whichever connectors are importable in your environment (GitHub always; Slack, Drive, Gmail when their extras are installed) appear in the picker. The `/ask` endpoint returns realistic stubbed responses today; the Phase 7 `TemporalRAG` orchestrator slots in behind it without the UI changing.
 
-> Requires **Node ≥18.17** for Next.js 14. Set `NEXT_PUBLIC_KAIRO_API_URL` in `ui/.env.local` if the backend is on a non-default host.
+> Requires **Node ≥16.14** (pinned to Next.js 13.5 for wider Node compatibility). Set `NEXT_PUBLIC_KAIRO_API_URL` in `ui/.env.local` if the backend is on a non-default host.
 
 ### Flow (directed graph, cycles allowed)
 
