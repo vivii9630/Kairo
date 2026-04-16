@@ -6,10 +6,12 @@ import shutil
 import stat
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
-from ..plugin import FetchResult, PluginManifest
+from ..auth import AuthMethod, AuthRequirement, BearerTokenAuth
+from ..plugin import FetchResult, FetchSpec, PluginManifest
 
 
 _GITHUB_URL_RE = re.compile(
@@ -18,34 +20,75 @@ _GITHUB_URL_RE = re.compile(
 )
 
 
+@dataclass
+class GitHubFetchSpec(FetchSpec):
+    """Fetch spec for the GitHub connector.
+
+    ``uri`` is required. ``ref`` selects a branch, tag, or commit; if
+    omitted, git's default HEAD is cloned. ``depth`` is passed straight
+    to ``git clone --depth`` (1 is usually what you want for snapshotting).
+    """
+
+    uri: str = ""
+    ref: Optional[str] = None
+    depth: int = 1
+
+
 class GitHubConnector:
-    """Shallow-clones a public GitHub repository into a temp dir.
+    """Shallow-clones a GitHub repository into a temp dir.
 
     Uses the ``git`` CLI via subprocess rather than a Python binding so we
     don't add a new dependency for a feature every developer already has.
-    Private repos will work if the user's local git is already authed
-    (SSH key, credential helper, PAT in remote URL) — the connector stays
-    out of credentials, which will flow through ``kairo-auth`` later.
+
+    Public repos: no auth. Private repos: pass a :class:`BearerTokenAuth`
+    holding a personal-access token (or fine-grained token) — the plugin
+    injects it into the clone URL as ``x-access-token``. Callers can also
+    pre-auth their local git (SSH key, credential helper) and skip the
+    ``auth`` argument entirely.
     """
 
     manifest = PluginManifest(
         name="github",
         label="GitHub",
-        description="Ingest a public GitHub repository by URL.",
+        description="Ingest a GitHub repository by URL (public, or private with a PAT).",
         uri_example="https://github.com/owner/repo",
+        auth=AuthRequirement(
+            methods=[BearerTokenAuth],
+            instructions=(
+                "Optional. Provide a GitHub Personal Access Token with 'repo' "
+                "scope to clone private repositories. Public repos need no auth."
+            ),
+        ),
         icon="github",
         tags=["code", "vcs"],
     )
 
-    def __init__(self, *, depth: int = 1, timeout: float = 120.0):
-        self.depth = int(depth)
+    def __init__(self, *, timeout: float = 120.0):
         self.timeout = float(timeout)
 
-    def fetch(self, uri: str, **kwargs: Any) -> FetchResult:
-        owner, repo = _parse_github_url(uri)
+    def fetch(
+        self,
+        spec: FetchSpec,
+        *,
+        auth: Optional[AuthMethod] = None,
+        **kwargs: Any,
+    ) -> FetchResult:
+        if not isinstance(spec, GitHubFetchSpec):
+            raise TypeError(
+                f"GitHubConnector expects GitHubFetchSpec, got {type(spec).__name__}"
+            )
+        if not spec.uri:
+            raise ValueError("GitHubFetchSpec.uri is required")
+        if auth is not None and not isinstance(auth, BearerTokenAuth):
+            raise ValueError(
+                "GitHubConnector accepts BearerTokenAuth only; "
+                f"got {type(auth).__name__}"
+            )
+
+        owner, repo = _parse_github_url(spec.uri)
         tmp_root = Path(tempfile.mkdtemp(prefix=f"kairo_github_{owner}_{repo}_"))
         try:
-            self._clone(uri, tmp_root)
+            self._clone(spec, auth, tmp_root)
         except Exception:
             _force_rmtree(tmp_root)
             raise
@@ -55,31 +98,41 @@ class GitHubConnector:
             "connector": "github",
             "owner": owner,
             "repo": repo,
-            "depth": self.depth,
+            "ref": spec.ref,
+            "depth": spec.depth,
             "file_count": len(files),
+            "authenticated": auth is not None,
         }
 
         def cleanup() -> None:
             _force_rmtree(tmp_root)
 
         return FetchResult(
+            source_uri=spec.uri,
+            metadata=metadata,
             root=tmp_root,
             files=files,
-            source_uri=uri,
-            metadata=metadata,
             cleanup=cleanup,
         )
 
-    def _clone(self, uri: str, dest: Path) -> None:
-        cmd = [
+    def _clone(
+        self,
+        spec: GitHubFetchSpec,
+        auth: Optional[BearerTokenAuth],
+        dest: Path,
+    ) -> None:
+        clone_url = _inject_token(spec.uri, auth)
+        cmd: List[str] = [
             "git",
             "clone",
             "--depth",
-            str(self.depth),
+            str(spec.depth),
             "--quiet",
-            uri,
-            str(dest),
         ]
+        if spec.ref:
+            cmd.extend(["--branch", spec.ref])
+        cmd.extend([clone_url, str(dest)])
+
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -88,8 +141,20 @@ class GitHubConnector:
         )
         if result.returncode != 0:
             raise RuntimeError(
-                f"git clone failed for {uri!r}: {result.stderr.strip() or 'unknown error'}"
+                f"git clone failed for {spec.uri!r}: "
+                f"{result.stderr.strip() or 'unknown error'}"
             )
+
+
+def _inject_token(uri: str, auth: Optional[BearerTokenAuth]) -> str:
+    """Return a clone URL with an auth token injected, if one was supplied.
+
+    Only HTTPS URLs get rewritten; SSH URLs are assumed to rely on the
+    user's existing SSH key setup.
+    """
+    if auth is None or not uri.startswith("http"):
+        return uri
+    return uri.replace("https://", f"https://x-access-token:{auth.token}@", 1)
 
 
 def _parse_github_url(uri: str) -> tuple[str, str]:
