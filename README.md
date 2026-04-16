@@ -80,7 +80,7 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 | [`kairo-cli`](cli/) | `kairo` command: ingest, query, and upcoming temporal commands (`init`, `snapshot`, `ask`, `log`, `rollback`, `branch`) | core, ingest, retrieval | ✅ shipped |
 | [`kairo-edge`](edge/) | ARM / mobile build — pure-Python, zero heavy deps | core | ✅ shipped |
 | `kairo-ai` | Backend orchestration for the **Kairo AI** product: plugin registry, session state, `ask()` API, FastAPI service composing connectors + engine + agents | core, connectors, temporal, agents | ⏳ planned (Phase 9) |
-| [`kairo-ui`](ui/) | Perplexity-shaped frontend: chat + plugin picker + D3 graph viz + history timeline; talks to `kairo-ai` over HTTP | kairo-ai | ⏳ planned (Phase 10) |
+| [`kairo-ui`](ui/) | Chat-native frontend: query box + plugin picker + D3 graph viz + history timeline; talks to `kairo-ai` over HTTP | kairo-ai | ⏳ planned (Phase 10) |
 | `kairo-auth` | Credential broker for embedding / LLM / connector providers; other packages pull keys from here | core | 🔒 reserved (future) |
 
 Each package lives in its own directory with its own `pyproject.toml` and `README.md`, so you can work on, commit, and publish them independently.
@@ -130,7 +130,7 @@ project-root/
 | 7 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ planned |
 | 8 | Supervisor multi-agent + **Kairo-native dict-based tool-use protocol** | `kairo-agents`, `kairo-flow` | ⏳ planned |
 | 9 | Backend orchestration: plugin registry, session state, `ask()` API, FastAPI service | `kairo-ai` | ⏳ planned |
-| 10 | Perplexity-shaped frontend: chat + plugin picker + D3 graph viz + history timeline | `kairo-ui` | ⏳ planned |
+| 10 | Chat-native frontend: query box + plugin picker + D3 graph viz + history timeline | `kairo-ui` | ⏳ planned |
 
 Each phase lands as a package-scoped commit so phases can be released, revisited, or contributed to independently.
 
@@ -295,7 +295,7 @@ Kairo/
 ├── agents/        # kairo-agents       — agents & messaging
 ├── cli/           # kairo-cli          — command-line interface
 ├── edge/          # kairo-edge         — ARM / mobile minimal build
-├── ui/            # kairo-ui           — Perplexity-shaped frontend                     (Phase 10, planned)
+├── ui/            # kairo-ui           — chat-native frontend                           (Phase 10, planned)
 ├── src/kairo/     # kairo              — meta package / SDK facade
 ├── examples/
 └── pyproject.toml # meta package
