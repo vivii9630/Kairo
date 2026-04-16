@@ -24,6 +24,20 @@ def _register_builtins() -> None:
     except ImportError:
         pass
 
+    try:
+        from .plugins.gdrive import GoogleDriveConnector
+
+        _BUILTIN["google_drive"] = GoogleDriveConnector
+    except ImportError:
+        pass
+
+    try:
+        from .plugins.gmail import GmailConnector
+
+        _BUILTIN["gmail"] = GmailConnector
+    except ImportError:
+        pass
+
 
 _register_builtins()
 

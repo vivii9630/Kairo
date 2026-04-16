@@ -51,6 +51,11 @@ class OAuth2Auth:
     ``expires_at`` is stored as a UTC datetime; ``is_expired`` compares
     against ``datetime.now(timezone.utc)`` with a small skew buffer so
     callers don't race token expiry.
+
+    ``client_id``/``client_secret``/``token_uri`` are the *application*
+    credentials needed to actually execute a refresh. They're optional
+    because some callers preauthorize elsewhere (e.g. a service account
+    flow) and hand Kairo a token that already refreshes itself.
     """
 
     access_token: str
@@ -58,6 +63,9 @@ class OAuth2Auth:
     expires_at: Optional[datetime] = None
     scopes: List[str] = field(default_factory=list)
     token_type: str = "Bearer"
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    token_uri: Optional[str] = None
 
     def header_value(self) -> str:
         return f"{self.token_type} {self.access_token}"
