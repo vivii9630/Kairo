@@ -17,6 +17,13 @@ def _register_builtins() -> None:
     except ImportError:
         pass
 
+    try:
+        from .plugins.slack import SlackConnector
+
+        _BUILTIN["slack"] = SlackConnector
+    except ImportError:
+        pass
+
 
 _register_builtins()
 
