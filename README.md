@@ -53,7 +53,7 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 
 ```
 ┌────────────┬──────────────────────────────────────────────────────────┐
-│  apps      │  kairo (meta) · kairo-cli · kairo-ai · kairo-ui (planned)│
+│  apps      │  kairo (meta) · kairo-cli · kairo-ai · kairo-ui          │
 ├────────────┼──────────────────────────────────────────────────────────┤
 │  patterns  │  kairo-rag  ·  kairo-flow  ·  kairo-agents               │
 ├────────────┼──────────────────────────────────────────────────────────┤
@@ -70,7 +70,7 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 | [`kairo-core`](core/) | Shared types (`Document`, `Message`, `Evidence`, `QueryRequest`, `Snapshot`, `HistoryNode`, `GraphDiff`, `TemporalQuery`, …) | — | ✅ shipped |
 | [`kairo-ingest`](ingest/) | Multi-format loaders (txt, jsonl, csv, xlsx, pdf, docx, audio) | core | ✅ shipped |
 | [`kairo-retrieval`](retrieval/) | Local lexical pipeline + hosted HTTP client; vector/graph/hybrid land here | core | ✅ shipped |
-| [`kairo-connectors`](connectors/) | Adapters for external sources via the `ConnectorPlugin` protocol (S3, Notion, web, Slack, GitHub URL, …) | core | ✅ shipped · GitHub plugin in build (Phase 4) |
+| [`kairo-connectors`](connectors/) | Adapters for external sources via the `ConnectorPlugin` protocol. Ships GitHub, Slack, Google Drive, Gmail; pluggable auth layer (Bearer / OAuth2 / API key) + env + file credential stores | core | ✅ shipped (Phases 4 + 6a/6b/6c) |
 | [`kairo-graph`](graph/) | `GraphBuilder` protocol, NetworkX-backed `KairoGraph` with deterministic SHA-256 hashing and JSON round-trip, per-content-type builders | core | ✅ shipped (Phase 1) |
 | [`kairo-embeddings`](embeddings/) | Pluggable `EmbeddingProvider` registry (hash-stub, sentence-transformers, OpenAI, Cohere, Voyage, Bedrock), `EmbeddingStore` with cosine top-k | core | ✅ shipped (Phase 2) |
 | [`kairo-temporal`](temporal/) | `HistoryGraph` (branching DAG of snapshots), rollback, walk, diff — owns the `.kairo/` filesystem layout | core, graph, embeddings | ✅ shipped (Phase 3) |
@@ -79,8 +79,8 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 | [`kairo-agents`](agents/) | Agents, inter-agent messaging, subagent delegation, verbose reasoning; supervisor multi-agent + Kairo-native tool-use lands in Phase 8 | core | ✅ shipped |
 | [`kairo-cli`](cli/) | `kairo` command: ingest, query, and upcoming temporal commands (`init`, `snapshot`, `ask`, `log`, `rollback`, `branch`) | core, ingest, retrieval | ✅ shipped |
 | [`kairo-edge`](edge/) | ARM / mobile build — pure-Python, zero heavy deps | core | ✅ shipped |
-| `kairo-ai` | Backend orchestration for the **Kairo AI** product: plugin registry, session state, `ask()` API, FastAPI service composing connectors + engine + agents | core, connectors, temporal, agents | ⏳ planned (Phase 9) |
-| [`kairo-ui`](ui/) | Chat-native frontend: query box + plugin picker + D3 graph viz + history timeline; talks to `kairo-ai` over HTTP | kairo-ai | ⏳ planned (Phase 10) |
+| [`kairo-ai`](ai/) | Backend orchestration for the **Kairo AI** product: FastAPI shell exposing `/plugins`, `/ask`, `/threads`. Stubbed answer path today; gets the Phase 7 `TemporalRAG` orchestrator behind it next | core, connectors | ✅ shipped (Phase 9, stub) |
+| [`kairo-ui`](ui/) | Chat-native frontend: logo-first landing, plugin picker wired to the live manifest registry, trace panel, thread list. Next.js (App Router) + Tailwind + TypeScript, talks to `kairo-ai` over HTTP | kairo-ai | ✅ shipped (Phase 10, thin slice) |
 | `kairo-auth` | Credential broker for embedding / LLM / connector providers; other packages pull keys from here | core | 🔒 reserved (future) |
 
 Each package lives in its own directory with its own `pyproject.toml` and `README.md`, so you can work on, commit, and publish them independently.
@@ -124,13 +124,13 @@ project-root/
 | 1 | Core temporal types + `KairoGraph` + `DocumentGraphBuilder` + round-trip | `kairo-core`, `kairo-graph` | ✅ shipped |
 | 2 | Pluggable `EmbeddingProvider` + registry + `EmbeddingStore` | `kairo-embeddings` | ✅ shipped |
 | 3 | `HistoryGraph`, snapshots, rollback, `.kairo/` filesystem store | `kairo-temporal` | ✅ shipped |
-| 4 | `ConnectorPlugin` protocol + GitHub URL connector (shallow clone → hand off to ingest) | `kairo-connectors` | ⏳ next |
-| 5 | Per-type graph builders (code AST, tabular rows/cols/FKs) | `kairo-graph` | ⏳ planned |
-| 6 | Second connector (Google/web) to validate the plugin protocol generalizes | `kairo-connectors` | ⏳ planned |
-| 7 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ planned |
+| 4 | `ConnectorPlugin` protocol + GitHub URL connector (shallow clone → hand off to ingest) | `kairo-connectors` | ✅ shipped |
+| 5 | Per-type graph builders (code AST, tabular rows/cols/FKs) | `kairo-graph` | ✅ shipped |
+| 6 | Protocol evolution + auth layer + Slack / Google Drive / Gmail (Jira deferred) | `kairo-connectors` | ✅ shipped (6a/6b/6c) |
+| 7 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ next |
 | 8 | Supervisor multi-agent + **Kairo-native dict-based tool-use protocol** | `kairo-agents`, `kairo-flow` | ⏳ planned |
-| 9 | Backend orchestration: plugin registry, session state, `ask()` API, FastAPI service | `kairo-ai` | ⏳ planned |
-| 10 | Chat-native frontend: query box + plugin picker + D3 graph viz + history timeline | `kairo-ui` | ⏳ planned |
+| 9 | FastAPI shell: `/plugins`, `/ask` (stubbed), `/threads` | `kairo-ai` | ✅ shipped (stub) |
+| 10 | Chat-native UI: plugin picker, ask box, trace panel, thread list | `kairo-ui` | ✅ shipped (thin slice) |
 
 Each phase lands as a package-scoped commit so phases can be released, revisited, or contributed to independently.
 
@@ -259,6 +259,25 @@ planner.delegate("writer", "Draft an opening line.")
 
 Plug in any LLM by passing `think_fn=(role, instruction, input) -> str`.
 
+### Run the Kairo AI app locally
+
+Two processes: the FastAPI backend (`ai/`) and the Next.js frontend (`ui/`).
+
+```bash
+# 1. Backend — serves /plugins, /ask, /threads on :8000
+pip install -e ./core ./connectors ./ai
+uvicorn kairo_ai.app:app --reload
+
+# 2. Frontend — in a second terminal
+cd ui
+npm install
+npm run dev   # http://localhost:3000
+```
+
+The plugin picker is wired to the live connector registry — whichever connectors are importable in your environment (GitHub always; Slack, Drive, Gmail when their extras are installed) appear in the picker. The `/ask` endpoint returns realistic stubbed responses today; the Phase 7 `TemporalRAG` orchestrator slots in behind it without the UI changing.
+
+> Requires **Node ≥18.17** for Next.js 14. Set `NEXT_PUBLIC_KAIRO_API_URL` in `ui/.env.local` if the backend is on a non-default host.
+
 ### Flow (directed graph, cycles allowed)
 
 ```python
@@ -295,7 +314,8 @@ Kairo/
 ├── agents/        # kairo-agents       — agents & messaging
 ├── cli/           # kairo-cli          — command-line interface
 ├── edge/          # kairo-edge         — ARM / mobile minimal build
-├── ui/            # kairo-ui           — chat-native frontend                           (Phase 10, planned)
+├── ai/            # kairo-ai           — FastAPI backend for the Kairo AI product       (Phase 9)
+├── ui/            # kairo-ui           — chat-native Next.js frontend                   (Phase 10)
 ├── src/kairo/     # kairo              — meta package / SDK facade
 ├── examples/
 └── pyproject.toml # meta package
