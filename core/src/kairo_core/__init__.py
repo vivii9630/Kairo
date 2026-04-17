@@ -10,11 +10,15 @@ from .models import (
     GraphEdge,
     GraphNode,
     HistoryNode,
+    InterLayerEdge,
+    LayeredGraphData,
     QueryRequest,
     QueryResponse,
     RetrievalResult,
     Snapshot,
     TemporalQuery,
+    TraversalStep,
+    TraversalTrace,
 )
 from .message import Message
 
@@ -34,4 +38,8 @@ __all__ = [
     "HistoryNode",
     "BranchRef",
     "TemporalQuery",
+    "InterLayerEdge",
+    "LayeredGraphData",
+    "TraversalStep",
+    "TraversalTrace",
 ]

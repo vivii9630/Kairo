@@ -110,3 +110,68 @@ class TemporalQuery(BaseModel):
     branch: Optional[str] = None
     mode: Literal["current", "rollback", "walk", "diff"] = "current"
     filters: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# 3-Layer graph types
+# ---------------------------------------------------------------------------
+
+LayerKind = Literal["document", "semantic", "detail"]
+"""The three decomposition layers of a Kairo layered graph.
+
+- **document**: High-level structural view (sections, headings, files).
+- **semantic**: Mid-level meaning view (concepts, relationships, themes).
+- **detail**: Fine-grained dense view (data points, parameters, evidence).
+"""
+
+
+class InterLayerEdge(BaseModel):
+    """Edge connecting a node in one layer to a node in an adjacent layer.
+
+    Kept separate from intra-layer ``GraphEdge`` so traversal can
+    distinguish "going deeper" from "going sideways".
+    """
+
+    source: str
+    target: str
+    source_layer: LayerKind
+    target_layer: LayerKind
+    kind: str = "refines"
+    attrs: Dict[str, Any] = Field(default_factory=dict)
+
+
+class LayeredGraphData(BaseModel):
+    """Serializable wire format for a 3-layer Kairo graph.
+
+    Each layer is a standard ``GraphData`` (nodes + intra-layer edges).
+    ``inter_layer_edges`` connect nodes across adjacent layers.
+    """
+
+    document: GraphData = Field(default_factory=GraphData)
+    semantic: GraphData = Field(default_factory=GraphData)
+    detail: GraphData = Field(default_factory=GraphData)
+    inter_layer_edges: List[InterLayerEdge] = Field(default_factory=list)
+
+
+class TraversalStep(BaseModel):
+    """Single step in an agent's traversal through the layered graph."""
+
+    agent_id: str
+    node_id: str
+    layer: LayerKind
+    action: Literal["visit", "expand", "cross_layer", "cluster", "score"]
+    score: Optional[float] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TraversalTrace(BaseModel):
+    """Full record of how agents traversed the 3-layer graph for a query.
+
+    Used to drive the 3D interactive visualization on the frontend.
+    """
+
+    query: str
+    steps: List[TraversalStep] = Field(default_factory=list)
+    visited_nodes: Dict[LayerKind, List[str]] = Field(default_factory=dict)
+    crossed_edges: List[InterLayerEdge] = Field(default_factory=list)
+    clusters: Dict[str, List[str]] = Field(default_factory=dict)
