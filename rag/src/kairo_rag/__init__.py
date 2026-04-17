@@ -5,6 +5,7 @@ from .layered_store import LayerEmbeddingStore
 from .session import GraphSnapshot, SessionStore
 from .temporal_rag import RAGResult, TemporalRAGEngine
 from .traversal import cluster_visited_nodes, graph_walk, knn_search
+from .engine_runner import AgentFinding, EngineResult, EngineRunner
 
 __all__ = [
     "MultiAgentOrchestrator",
@@ -16,4 +17,7 @@ __all__ = [
     "cluster_visited_nodes",
     "graph_walk",
     "knn_search",
+    "AgentFinding",
+    "EngineResult",
+    "EngineRunner",
 ]
