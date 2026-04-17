@@ -5,10 +5,12 @@ import Image from "next/image";
 import { api } from "@/lib/api";
 import type {
   AskResponse,
+  LayeredGraphData,
   Message,
   PluginSummary,
   Thread,
   TraceStep,
+  TraversalTrace,
 } from "@/lib/types";
 import { Sidebar } from "@/components/Sidebar";
 import { TopNav } from "@/components/TopNav";
@@ -30,6 +32,8 @@ export default function HomePage() {
   const [selectedPlugin, setSelectedPlugin] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [trace, setTrace] = useState<TraceStep[]>([]);
+  const [graphData, setGraphData] = useState<LayeredGraphData | null>(null);
+  const [traversalTrace, setTraversalTrace] = useState<TraversalTrace | null>(null);
   const [stubbed, setStubbed] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +59,8 @@ export default function HomePage() {
     setMessages(t.messages);
     setSelectedPlugin(t.plugin ?? null);
     setTrace([]);
+    setGraphData(null);
+    setTraversalTrace(null);
     setDraft("");
   }, []);
 
@@ -62,6 +68,8 @@ export default function HomePage() {
     setActiveThread(null);
     setMessages([]);
     setTrace([]);
+    setGraphData(null);
+    setTraversalTrace(null);
     setError(null);
     setDraft("");
   }
@@ -87,6 +95,8 @@ export default function HomePage() {
         },
       ]);
       setTrace(res.trace);
+      setGraphData(res.graph_data ?? null);
+      setTraversalTrace(res.traversal_trace ?? null);
       setStubbed(res.stubbed);
       if (!activeThread) {
         const t = await api.getThread(res.thread_id);
@@ -149,7 +159,12 @@ export default function HomePage() {
             )}
           </div>
 
-          <TracePanel trace={trace} stubbed={stubbed} />
+          <TracePanel
+            trace={trace}
+            stubbed={stubbed}
+            graphData={graphData}
+            traversalTrace={traversalTrace}
+          />
         </div>
       </main>
     </div>

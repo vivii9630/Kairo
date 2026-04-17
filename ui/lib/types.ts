@@ -57,4 +57,71 @@ export interface AskResponse {
   citations: Citation[];
   trace: TraceStep[];
   stubbed: boolean;
+  graph_data?: LayeredGraphData | null;
+  traversal_trace?: TraversalTrace | null;
+}
+
+// ---------------------------------------------------------------------------
+// 3-Layer graph types (mirrors kairo-core models)
+// ---------------------------------------------------------------------------
+
+export interface GraphNode {
+  id: string;
+  kind: string;
+  label: string;
+  attrs: Record<string, unknown>;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  kind: string;
+  attrs: Record<string, unknown>;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface InterLayerEdge {
+  source: string;
+  target: string;
+  source_layer: LayerKind;
+  target_layer: LayerKind;
+  kind: string;
+  attrs: Record<string, unknown>;
+}
+
+export type LayerKind = "document" | "semantic" | "detail";
+
+export interface LayeredGraphData {
+  document: GraphData;
+  semantic: GraphData;
+  detail: GraphData;
+  inter_layer_edges: InterLayerEdge[];
+}
+
+export type TraversalAction =
+  | "visit"
+  | "expand"
+  | "cross_layer"
+  | "cluster"
+  | "score";
+
+export interface TraversalStep {
+  agent_id: string;
+  node_id: string;
+  layer: LayerKind;
+  action: TraversalAction;
+  score: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface TraversalTrace {
+  query: string;
+  steps: TraversalStep[];
+  visited_nodes: Record<LayerKind, string[]>;
+  crossed_edges: InterLayerEdge[];
+  clusters: Record<string, string[]>;
 }

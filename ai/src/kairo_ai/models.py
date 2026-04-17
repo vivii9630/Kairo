@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from kairo_core.models import LayeredGraphData, TraversalTrace
+
 
 class PluginSummary(BaseModel):
     """Flattened ``PluginManifest`` shaped for the plugin picker UI."""
@@ -69,6 +71,8 @@ class AskResponse(BaseModel):
     citations: List[Citation] = Field(default_factory=list)
     trace: List[TraceStep] = Field(default_factory=list)
     stubbed: bool = True
+    graph_data: Optional[LayeredGraphData] = None
+    traversal_trace: Optional[TraversalTrace] = None
 
 
 class Thread(BaseModel):
