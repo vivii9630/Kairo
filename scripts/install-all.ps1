@@ -13,6 +13,7 @@ $packages = @(
     "retrieval",
     "flow",
     "rag",
+    "analytics",
     "connectors",
     "edge",
     "cli"

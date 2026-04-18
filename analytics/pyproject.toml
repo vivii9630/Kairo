@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kairo-analytics"
+version = "0.1.0"
+description = "Kairo analytics: charts, descriptive stats, forecasting, and ML helpers. Consumes the AnalyticsPlan contract from kairo-core."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "kairo-core",
+    "pandas>=2.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+forecast = [
+    "statsmodels>=0.14",
+]
+ml = [
+    "scikit-learn>=1.3",
+]
+all = [
+    "statsmodels>=0.14",
+    "scikit-learn>=1.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

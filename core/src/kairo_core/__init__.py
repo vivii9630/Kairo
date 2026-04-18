@@ -1,5 +1,15 @@
 """Kairo core: shared types used across all Kairo subpackages."""
 
+from .analytics_models import (
+    AggregationKind,
+    AnalyticsPlan,
+    AnalyticsResult,
+    ChartKind,
+    ChartSeries,
+    ChartSpec,
+    ForecastSpec,
+    StatSummary,
+)
 from .models import (
     AgentStep,
     BranchRef,
@@ -42,4 +52,12 @@ __all__ = [
     "LayeredGraphData",
     "TraversalStep",
     "TraversalTrace",
+    "AggregationKind",
+    "AnalyticsPlan",
+    "AnalyticsResult",
+    "ChartKind",
+    "ChartSeries",
+    "ChartSpec",
+    "ForecastSpec",
+    "StatSummary",
 ]
