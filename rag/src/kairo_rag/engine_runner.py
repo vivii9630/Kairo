@@ -26,6 +26,7 @@ from kairo_agents.agent import ThinkFn, _default_think
 from kairo_embeddings.provider import EmbeddingProvider
 
 from .temporal_rag import RAGResult, TemporalRAGEngine
+from .web_enrichment import WebEnricher
 
 
 @dataclass
@@ -81,11 +82,13 @@ class EngineRunner:
         top_k: int = 5,
         walk_depth: int = 2,
         verbose: bool = False,
+        web_enricher: Optional[WebEnricher] = None,
     ) -> None:
         self.embedding_provider = embedding_provider
         self.default_think_fn = think_fn or _default_think
         self.agent_think_fns = agent_think_fns or {}
         self.verbose = verbose
+        self.web_enricher = web_enricher
 
         self.engine = TemporalRAGEngine(
             embedding_provider, top_k=top_k, walk_depth=walk_depth
@@ -111,6 +114,11 @@ class EngineRunner:
         rag_result = self.engine.query(
             query, documents, session_id=session_id
         )
+
+        # 1b. Optional web enrichment — mutates rag_result in place so
+        # the supervisor sees the new detail-layer web nodes.
+        if self.web_enricher is not None:
+            self.web_enricher.enrich(query, rag_result)
 
         # 2. Supervisor: deterministic planning
         plan = self.supervisor.plan(query, rag_result.trace)
@@ -189,17 +197,36 @@ class EngineRunner:
         """Assemble the input text for an agent based on its role and scope."""
         parts = [f"Query: {query}\n"]
 
-        # Filter evidence by layer scope
+        # Filter evidence by layer scope, then optionally by cluster/kind.
         scoped_evidence = [
             ev for ev in rag_result.evidences
             if ev.metadata.get("layer") in task.layer_scope
         ]
 
+        if task.role == "web_researcher":
+            # Web researcher: only read web-kind evidence. Include URLs in
+            # the output prefix so its finding cites sources directly.
+            scoped_evidence = [
+                ev for ev in scoped_evidence
+                if ev.metadata.get("kind") == "web"
+            ]
+        elif "web_hits" not in task.cluster_ids:
+            # Other roles: exclude web evidence so they stay grounded in
+            # the user's local corpus.  The synthesizer picks up web
+            # context via the researcher's finding, not the raw hits.
+            scoped_evidence = [
+                ev for ev in scoped_evidence
+                if ev.metadata.get("kind") != "web"
+            ]
+
         if scoped_evidence:
             parts.append("Relevant evidence:")
             for ev in scoped_evidence[:15]:  # cap to avoid token overflow
+                tail = ""
+                if ev.metadata.get("kind") == "web" and ev.metadata.get("url"):
+                    tail = f" <{ev.metadata['url']}>"
                 parts.append(
-                    f"  [{ev.document_id}] (score={ev.score:.3f}): {ev.text}"
+                    f"  [{ev.document_id}] (score={ev.score:.3f}): {ev.text}{tail}"
                 )
 
         # Cluster info

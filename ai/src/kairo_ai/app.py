@@ -310,7 +310,12 @@ def _trace_from_result(result) -> List[TraceStep]:
         )
     ]
     for i, finding in enumerate(result.findings, start=2):
-        kind = "synthesize" if finding.role == "synthesizer" else "retrieve"
+        if finding.role == "synthesizer":
+            kind = "synthesize"
+        elif finding.role == "web_researcher":
+            kind = "tool"
+        else:
+            kind = "retrieve"
         output = (finding.output or "").strip()
         summary = output[:160] + ("…" if len(output) > 160 else "")
         if not summary:

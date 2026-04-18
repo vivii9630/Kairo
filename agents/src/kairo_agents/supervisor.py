@@ -109,6 +109,7 @@ ROLE_EXPLORER = "explorer"
 ROLE_ANALYZER = "analyzer"
 ROLE_SYNTHESIZER = "synthesizer"
 ROLE_VALIDATOR = "validator"
+ROLE_WEB_RESEARCHER = "web_researcher"
 
 _ROLE_INSTRUCTIONS = {
     ROLE_EXPLORER: (
@@ -132,6 +133,15 @@ _ROLE_INSTRUCTIONS = {
         "You are a validator agent. Your job is to check the synthesized "
         "answer against the raw evidence. Flag any unsupported claims, "
         "missing context, or contradictions. Suggest corrections if needed."
+    ),
+    ROLE_WEB_RESEARCHER: (
+        "You are a web research agent. Web search results have been "
+        "attached to the detail layer under the 'web' cluster. Your job "
+        "is to read those external sources, extract what they contribute "
+        "beyond the local documents — new suggestions, alternatives, "
+        "recent trends, or corroborating evidence — and produce a short "
+        "report. Always include each source URL so the synthesizer can "
+        "cite it."
     ),
 }
 
@@ -178,6 +188,10 @@ class Supervisor:
         - **4+ agents**: explorer + N analyzers (one per cluster) + synthesizer
           + optional validator if graph is dense enough
 
+        When the traversal contains a ``web_hits`` cluster (populated by
+        :class:`kairo_rag.WebEnricher`), a web-researcher task is spliced
+        in between the analyzers and the synthesizer.
+
         Scaling is deterministic: it's a function of cluster count, node
         count, and inter-layer density.
         """
@@ -186,6 +200,8 @@ class Supervisor:
             trace.clusters,
             len(trace.crossed_edges),
         )
+
+        has_web = self._has_web_hits(trace)
 
         # Determine how many agents to use
         needed = self._compute_agent_count(stats)
@@ -201,10 +217,16 @@ class Supervisor:
         else:
             tasks = self._plan_scaled(query, trace, stats, total)
 
+        if has_web:
+            tasks = self._inject_web_researcher(tasks, trace)
+            scaling_reason = (
+                f"{scaling_reason}; +web_researcher (web_hits cluster)"
+            )
+
         return TaskPlan(
             query=query,
             tasks=tasks,
-            total_agents=total,
+            total_agents=len(tasks),
             scaling_reason=scaling_reason,
             metadata={"topology": {
                 "document_nodes": stats.document_nodes,
@@ -212,8 +234,55 @@ class Supervisor:
                 "detail_nodes": stats.detail_nodes,
                 "clusters": stats.cluster_count,
                 "density": round(stats.density, 3),
+                "has_web_hits": has_web,
             }},
         )
+
+    # -- web enrichment detection ------------------------------------------
+
+    @staticmethod
+    def _has_web_hits(trace: TraversalTrace) -> bool:
+        """True if the enricher attached a ``web_hits`` cluster."""
+        return bool(trace.clusters.get("web_hits"))
+
+    def _inject_web_researcher(
+        self, tasks: List[AgentTask], trace: TraversalTrace,
+    ) -> List[AgentTask]:
+        """Splice a web_researcher task before the synthesizer.
+
+        Re-priorities adjacent tasks so the researcher runs after
+        analyzers (its findings should feed the synthesizer).
+        """
+        web_ids = list(trace.clusters.get("web_hits", []))
+        # Find the synthesizer's current priority to place the web task
+        # just before it.  Fall back to appending if no synthesizer found.
+        synth_priority = None
+        for t in tasks:
+            if t.role == ROLE_SYNTHESIZER:
+                synth_priority = t.priority
+                break
+
+        # Bump the synthesizer (and anything at that priority or later) up
+        # by one so the researcher slots between analyzer and synthesis.
+        if synth_priority is not None:
+            for t in tasks:
+                if t.priority >= synth_priority:
+                    t.priority = t.priority + 1
+            web_priority = synth_priority
+        else:
+            web_priority = max((t.priority for t in tasks), default=0) + 1
+
+        web_task = AgentTask(
+            agent_name=f"agent_{len(tasks)}",
+            role=ROLE_WEB_RESEARCHER,
+            instruction=_ROLE_INSTRUCTIONS[ROLE_WEB_RESEARCHER],
+            layer_scope=["detail"],
+            cluster_ids=["web_hits"],
+            priority=web_priority,
+            metadata={"web_hit_ids": web_ids},
+        )
+        tasks.append(web_task)
+        return tasks
 
     # -- agent count heuristics ---------------------------------------------
 

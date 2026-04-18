@@ -109,7 +109,9 @@ function NodeSphere({
   hovered: boolean;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const baseColor = LAYER_COLORS[node.layer];
+  // Web-research nodes use a distinctive purple so they stand out from
+  // local detail-layer facts even though they share the same plane.
+  const baseColor = node.kind === "web" ? "#c78bff" : LAYER_COLORS[node.layer];
   const color = node.visited ? baseColor : "#3a3b3b";
   const scale = hovered ? 1.6 : node.visited ? 1.0 : 0.5;
   const emissive = node.visited ? baseColor : "#000000";

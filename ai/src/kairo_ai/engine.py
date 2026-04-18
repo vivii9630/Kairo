@@ -27,7 +27,9 @@ from kairo_agents.providers.ollama import (
     list_ollama_models,
     ollama_think_fn,
 )
+from kairo_agents.providers.tavily import tavily_client_from_env
 from kairo_rag.engine_runner import EngineRunner
+from kairo_rag.web_enrichment import WebEnricher, WebEnricherConfig
 
 
 # Kairo's own self-description — ensures an empty-attachment demo query
@@ -99,6 +101,7 @@ _SEED_DOCS: List[Document] = [
 _lock = threading.Lock()
 _runner: Optional[EngineRunner] = None
 _model_used: Optional[str] = None
+_web_enabled: bool = False
 
 
 def _pick_ollama_model() -> Optional[str]:
@@ -124,9 +127,12 @@ def get_engine() -> Optional[EngineRunner]:
     """Return a process-wide EngineRunner or None if Ollama is down.
 
     Thread-safe and lazy: the runner is built on first successful call
-    and reused afterwards.
+    and reused afterwards.  If ``TAVILY_API_KEY`` is set in the
+    environment, a :class:`WebEnricher` is attached so queries asking
+    for suggestions / alternatives / recent trends get web-sourced
+    detail nodes injected into the 3-layer graph.
     """
-    global _runner, _model_used
+    global _runner, _model_used, _web_enabled
 
     if _runner is not None:
         return _runner
@@ -145,6 +151,16 @@ def get_engine() -> Optional[EngineRunner]:
         provider = get_provider("hash-stub", dim=128)
         think_fn = ollama_think_fn(OllamaConfig(model=model))
 
+        # Optional web enrichment — only built when TAVILY_API_KEY is set.
+        enricher: Optional[WebEnricher] = None
+        tavily = tavily_client_from_env()
+        if tavily is not None:
+            enricher = WebEnricher(
+                tavily,
+                config=WebEnricherConfig(max_hits=4, concepts_to_link=3),
+            )
+            _web_enabled = True
+
         _runner = EngineRunner(
             embedding_provider=provider,
             think_fn=think_fn,
@@ -152,6 +168,7 @@ def get_engine() -> Optional[EngineRunner]:
             top_k=5,
             walk_depth=2,
             verbose=False,
+            web_enricher=enricher,
         )
         _model_used = model
         return _runner
@@ -165,3 +182,8 @@ def seed_documents() -> List[Document]:
 def current_model() -> Optional[str]:
     """Tag describing the Ollama model in use; used for UI display."""
     return _model_used
+
+
+def web_enabled() -> bool:
+    """True when Tavily web enrichment is wired into the runner."""
+    return _web_enabled

@@ -6,6 +6,7 @@ from .session import GraphSnapshot, SessionStore
 from .temporal_rag import RAGResult, TemporalRAGEngine
 from .traversal import cluster_visited_nodes, graph_walk, knn_search
 from .engine_runner import AgentFinding, EngineResult, EngineRunner
+from .web_enrichment import WebEnricher, WebEnricherConfig
 
 __all__ = [
     "MultiAgentOrchestrator",
@@ -20,4 +21,6 @@ __all__ = [
     "AgentFinding",
     "EngineResult",
     "EngineRunner",
+    "WebEnricher",
+    "WebEnricherConfig",
 ]
