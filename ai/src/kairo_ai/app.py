@@ -131,6 +131,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             session_id = f"{thread.id}:{req.ingest_id}"
 
         runner = get_engine()
+        cited_node_ids: List[str] = []
         if runner is None:
             # Ollama unreachable — return the stub so the UI still works.
             answer_text, trace, graph_data, traversal_trace, stubbed = (
@@ -145,6 +146,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
                 trace = _trace_from_result(result)
                 graph_data = result.graph_data
                 traversal_trace = result.rag_result.trace
+                cited_node_ids = _cited_ids(result)
                 stubbed = False
             except Exception as exc:  # noqa: BLE001 — surface engine errors in-UI
                 answer_text, trace, graph_data, traversal_trace, stubbed = (
@@ -168,6 +170,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             stubbed=stubbed,
             graph_data=graph_data,
             traversal_trace=traversal_trace,
+            cited_node_ids=cited_node_ids,
         )
 
     @app.post("/ingest", response_model=IngestResponse)
@@ -289,6 +292,44 @@ def _stub_response(
     trace = _stub_trace(query, plugin)
     graph_data, traversal = _stub_layered_graph(query)
     return answer, trace, graph_data, traversal, True
+
+
+def _cited_ids(result, *, max_ids: int = 12, min_score: float = 0.15) -> List[str]:
+    """Evidence ids that actually grounded the synthesized answer.
+
+    The RAG engine already scores evidences by KNN similarity + graph
+    proximity.  We pass the top N (above a soft floor) to the UI so the
+    3D viz can halo them.  Web-kind evidence is always included since it
+    was injected specifically to enrich this query.
+    """
+    evidences = list(getattr(result.rag_result, "evidences", []) or [])
+    if not evidences:
+        return []
+
+    # Web hits are always cited — they're here because the enricher
+    # decided this query needed them.
+    web_ids = [
+        ev.document_id for ev in evidences
+        if ev.metadata.get("kind") == "web"
+    ]
+
+    # Then top-scoring non-web evidence up to the cap.
+    ranked = sorted(
+        (ev for ev in evidences if ev.metadata.get("kind") != "web"),
+        key=lambda e: e.score,
+        reverse=True,
+    )
+    top = [ev.document_id for ev in ranked if ev.score >= min_score]
+
+    merged: List[str] = []
+    seen = set()
+    for nid in web_ids + top:
+        if nid and nid not in seen:
+            merged.append(nid)
+            seen.add(nid)
+        if len(merged) >= max_ids:
+            break
+    return merged
 
 
 def _trace_from_result(result) -> List[TraceStep]:

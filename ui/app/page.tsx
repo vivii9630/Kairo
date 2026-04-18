@@ -35,6 +35,7 @@ export default function HomePage() {
   const [trace, setTrace] = useState<TraceStep[]>([]);
   const [graphData, setGraphData] = useState<LayeredGraphData | null>(null);
   const [traversalTrace, setTraversalTrace] = useState<TraversalTrace | null>(null);
+  const [citedNodeIds, setCitedNodeIds] = useState<string[]>([]);
   const [stubbed, setStubbed] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export default function HomePage() {
     setTrace([]);
     setGraphData(null);
     setTraversalTrace(null);
+    setCitedNodeIds([]);
     setDraft("");
     setIngest(null);
     setIngestError(null);
@@ -77,6 +79,7 @@ export default function HomePage() {
     setTrace([]);
     setGraphData(null);
     setTraversalTrace(null);
+    setCitedNodeIds([]);
     setError(null);
     setDraft("");
     setIngest(null);
@@ -138,6 +141,7 @@ export default function HomePage() {
       setTrace(res.trace);
       setGraphData(res.graph_data ?? null);
       setTraversalTrace(res.traversal_trace ?? null);
+      setCitedNodeIds(res.cited_node_ids ?? []);
       setStubbed(res.stubbed);
       if (!activeThread) {
         const t = await api.getThread(res.thread_id);
@@ -217,6 +221,7 @@ export default function HomePage() {
             stubbed={stubbed}
             graphData={graphData}
             traversalTrace={traversalTrace}
+            citedNodeIds={citedNodeIds}
           />
         </div>
       </main>

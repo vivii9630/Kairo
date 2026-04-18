@@ -19,6 +19,7 @@ interface TracePanelProps {
   stubbed: boolean;
   graphData?: LayeredGraphData | null;
   traversalTrace?: TraversalTrace | null;
+  citedNodeIds?: string[];
 }
 
 type Tab = "graph" | "steps";
@@ -36,9 +37,11 @@ export function TracePanel({
   stubbed,
   graphData,
   traversalTrace,
+  citedNodeIds,
 }: TracePanelProps) {
   const hasGraph = !!graphData;
   const [activeTab, setActiveTab] = useState<Tab>(hasGraph ? "graph" : "steps");
+  const citedCount = citedNodeIds?.length ?? 0;
 
   // Stats for the header
   const nodeCount = graphData
@@ -80,6 +83,9 @@ export function TracePanel({
           {hasGraph && (
             <span className="text-[10px] text-muted">
               {visitedCount}/{nodeCount} nodes
+              {citedCount > 0 && (
+                <span className="ml-1 text-[#ffd56b]">· {citedCount} cited</span>
+              )}
             </span>
           )}
           {stubbed && (
@@ -93,7 +99,11 @@ export function TracePanel({
       {/* Content */}
       <div className="flex-1 min-h-0 flex flex-col">
         {activeTab === "graph" ? (
-          <GraphTab graphData={graphData} traversalTrace={traversalTrace} />
+          <GraphTab
+            graphData={graphData}
+            traversalTrace={traversalTrace}
+            citedNodeIds={citedNodeIds}
+          />
         ) : (
           <StepsTab trace={trace} />
         )}
@@ -111,6 +121,10 @@ export function TracePanel({
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#ffa28b]" /> Detail
           </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full ring-2 ring-[#ffd56b] bg-[#ffd56b]/30" />
+            Cited
+          </span>
         </div>
       )}
     </aside>
@@ -124,9 +138,11 @@ export function TracePanel({
 function GraphTab({
   graphData,
   traversalTrace,
+  citedNodeIds,
 }: {
   graphData?: LayeredGraphData | null;
   traversalTrace?: TraversalTrace | null;
+  citedNodeIds?: string[];
 }) {
   if (!graphData) {
     return (
@@ -139,7 +155,11 @@ function GraphTab({
 
   return (
     <div className="flex-1 min-h-0">
-      <Graph3D graph={graphData} traversal={traversalTrace} />
+      <Graph3D
+        graph={graphData}
+        traversal={traversalTrace}
+        citedNodeIds={citedNodeIds}
+      />
     </div>
   );
 }

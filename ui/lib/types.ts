@@ -68,6 +68,7 @@ export interface AskResponse {
   stubbed: boolean;
   graph_data?: LayeredGraphData | null;
   traversal_trace?: TraversalTrace | null;
+  cited_node_ids?: string[];
 }
 
 // ---------------------------------------------------------------------------

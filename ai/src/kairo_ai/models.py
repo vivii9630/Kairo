@@ -93,6 +93,10 @@ class AskResponse(BaseModel):
     stubbed: bool = True
     graph_data: Optional[LayeredGraphData] = None
     traversal_trace: Optional[TraversalTrace] = None
+    # Top-scoring evidence node ids that actually grounded the answer — the
+    # 3D viz renders these with a halo + brighter glow to distinguish
+    # "cited in answer" from "merely visited during traversal".
+    cited_node_ids: List[str] = Field(default_factory=list)
 
 
 class Thread(BaseModel):
