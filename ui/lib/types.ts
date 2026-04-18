@@ -49,6 +49,15 @@ export interface AskRequest {
   query: string;
   plugin?: string | null;
   thread_id?: string | null;
+  ingest_id?: string | null;
+}
+
+export interface IngestResponse {
+  ingest_id: string;
+  source: string;
+  label: string;
+  doc_count: number;
+  kind: "github" | "csv" | "xlsx";
 }
 
 export interface AskResponse {

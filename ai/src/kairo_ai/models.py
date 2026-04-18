@@ -57,6 +57,26 @@ class AskRequest(BaseModel):
     query: str
     plugin: Optional[str] = None
     thread_id: Optional[str] = None
+    ingest_id: Optional[str] = None
+
+
+class IngestUrlRequest(BaseModel):
+    source_url: str
+
+
+class IngestResponse(BaseModel):
+    """Summary of a completed ingest.
+
+    ``source`` is the raw input (URL or filename); ``label`` is the
+    short chip string the UI renders (``"owner/repo"`` for GitHub,
+    filename for uploads).
+    """
+
+    ingest_id: str
+    source: str
+    label: str
+    doc_count: int
+    kind: Literal["github", "csv", "xlsx"]
 
 
 class Message(BaseModel):

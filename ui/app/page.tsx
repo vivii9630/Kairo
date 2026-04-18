@@ -5,6 +5,7 @@ import Image from "next/image";
 import { api } from "@/lib/api";
 import type {
   AskResponse,
+  IngestResponse,
   LayeredGraphData,
   Message,
   PluginSummary,
@@ -39,6 +40,10 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
+  const [ingest, setIngest] = useState<IngestResponse | null>(null);
+  const [ingestPending, setIngestPending] = useState(false);
+  const [ingestError, setIngestError] = useState<string | null>(null);
+
   useEffect(() => {
     api.getPlugins().then(setPlugins).catch((e) => setError(String(e)));
     api.listThreads().then(setThreads).catch(() => {});
@@ -62,6 +67,8 @@ export default function HomePage() {
     setGraphData(null);
     setTraversalTrace(null);
     setDraft("");
+    setIngest(null);
+    setIngestError(null);
   }, []);
 
   function newThread() {
@@ -72,6 +79,39 @@ export default function HomePage() {
     setTraversalTrace(null);
     setError(null);
     setDraft("");
+    setIngest(null);
+    setIngestError(null);
+  }
+
+  async function handleIngestUrl(url: string) {
+    setIngestError(null);
+    setIngestPending(true);
+    try {
+      const res = await api.ingestUrl(url);
+      setIngest(res);
+    } catch (e) {
+      setIngestError(String(e));
+    } finally {
+      setIngestPending(false);
+    }
+  }
+
+  async function handleIngestFile(file: File) {
+    setIngestError(null);
+    setIngestPending(true);
+    try {
+      const res = await api.ingestFile(file);
+      setIngest(res);
+    } catch (e) {
+      setIngestError(String(e));
+    } finally {
+      setIngestPending(false);
+    }
+  }
+
+  function clearIngest() {
+    setIngest(null);
+    setIngestError(null);
   }
 
   async function handleAsk(query: string) {
@@ -85,6 +125,7 @@ export default function HomePage() {
         query,
         plugin: selectedPlugin,
         thread_id: activeThread?.id ?? null,
+        ingest_id: ingest?.ingest_id ?? null,
       });
       setMessages((m) => [
         ...m,
@@ -137,6 +178,12 @@ export default function HomePage() {
                 draft={draft}
                 onDraftChange={setDraft}
                 showLogo={showLogo}
+                ingest={ingest}
+                ingestPending={ingestPending}
+                ingestError={ingestError}
+                onIngestUrl={handleIngestUrl}
+                onIngestFile={handleIngestFile}
+                onClearIngest={clearIngest}
               />
             ) : (
               <ThreadView
@@ -148,6 +195,12 @@ export default function HomePage() {
                 onAsk={handleAsk}
                 draft={draft}
                 onDraftChange={setDraft}
+                ingest={ingest}
+                ingestPending={ingestPending}
+                ingestError={ingestError}
+                onIngestUrl={handleIngestUrl}
+                onIngestFile={handleIngestFile}
+                onClearIngest={clearIngest}
               />
             )}
             {error && (
@@ -171,6 +224,15 @@ export default function HomePage() {
   );
 }
 
+interface IngestProps {
+  ingest: IngestResponse | null;
+  ingestPending: boolean;
+  ingestError: string | null;
+  onIngestUrl: (url: string) => void;
+  onIngestFile: (file: File) => void;
+  onClearIngest: () => void;
+}
+
 function LandingView({
   plugins,
   selectedPlugin,
@@ -180,6 +242,12 @@ function LandingView({
   draft,
   onDraftChange,
   showLogo,
+  ingest,
+  ingestPending,
+  ingestError,
+  onIngestUrl,
+  onIngestFile,
+  onClearIngest,
 }: {
   plugins: PluginSummary[];
   selectedPlugin: string | null;
@@ -189,7 +257,7 @@ function LandingView({
   draft: string;
   onDraftChange: (v: string) => void;
   showLogo: boolean;
-}) {
+} & IngestProps) {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 pt-16 pb-12">
@@ -219,6 +287,12 @@ function LandingView({
           onSubmit={onAsk}
           disabled={pending}
           autoFocus
+          ingest={ingest}
+          ingestPending={ingestPending}
+          ingestError={ingestError}
+          onIngestUrl={onIngestUrl}
+          onIngestFile={onIngestFile}
+          onClearIngest={onClearIngest}
         />
 
         {showLogo && (
@@ -254,6 +328,12 @@ function ThreadView({
   onAsk,
   draft,
   onDraftChange,
+  ingest,
+  ingestPending,
+  ingestError,
+  onIngestUrl,
+  onIngestFile,
+  onClearIngest,
 }: {
   plugins: PluginSummary[];
   selectedPlugin: string | null;
@@ -263,7 +343,7 @@ function ThreadView({
   onAsk: (q: string) => void;
   draft: string;
   onDraftChange: (v: string) => void;
-}) {
+} & IngestProps) {
   return (
     <>
       <div className="flex-1 overflow-y-auto">
@@ -281,6 +361,12 @@ function ThreadView({
             onChange={onDraftChange}
             onSubmit={onAsk}
             disabled={pending}
+            ingest={ingest}
+            ingestPending={ingestPending}
+            ingestError={ingestError}
+            onIngestUrl={onIngestUrl}
+            onIngestFile={onIngestFile}
+            onClearIngest={onClearIngest}
           />
         </div>
       </div>

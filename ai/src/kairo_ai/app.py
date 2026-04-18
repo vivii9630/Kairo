@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from kairo_connectors import list_manifests
@@ -33,10 +33,20 @@ from kairo_core.models import (
 )
 
 from .engine import current_model, get_engine, seed_documents
+from .ingest import (
+    GitHubFetchError,
+    IngestStore,
+    TabularFetchError,
+    ingest_csv,
+    ingest_github,
+    ingest_xlsx,
+)
 from .models import (
     AskRequest,
     AskResponse,
     Citation,
+    IngestResponse,
+    IngestUrlRequest,
     Message,
     PluginSummary,
     Thread,
@@ -69,6 +79,9 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
     store = ThreadStore()
     app.state.thread_store = store
 
+    ingest_store = IngestStore()
+    app.state.ingest_store = ingest_store
+
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok"}
@@ -96,6 +109,27 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             Message(role="user", content=req.query, created_at=now),
         )
 
+        # Pick the document set the engine will graph:
+        #   ingest_id → the user-uploaded docs (GitHub / CSV / XLSX)
+        #   otherwise → the Kairo self-description seed corpus.
+        documents = seed_documents()
+        ingest_label: Optional[str] = None
+        if req.ingest_id:
+            ingest = ingest_store.get(req.ingest_id)
+            if ingest is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"unknown ingest_id: {req.ingest_id}",
+                )
+            documents = ingest.documents
+            ingest_label = ingest.label
+
+        # Session id per (thread, ingest) so the snapshot cache doesn't
+        # alias a GitHub-graph with a seed-graph in the same thread.
+        session_id = thread.id
+        if req.ingest_id:
+            session_id = f"{thread.id}:{req.ingest_id}"
+
         runner = get_engine()
         if runner is None:
             # Ollama unreachable — return the stub so the UI still works.
@@ -105,7 +139,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
         else:
             try:
                 result = runner.run(
-                    req.query, seed_documents(), session_id=thread.id
+                    req.query, documents, session_id=session_id
                 )
                 answer_text = result.answer
                 trace = _trace_from_result(result)
@@ -134,6 +168,73 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             stubbed=stubbed,
             graph_data=graph_data,
             traversal_trace=traversal_trace,
+        )
+
+    @app.post("/ingest", response_model=IngestResponse)
+    def ingest_url(req: IngestUrlRequest) -> IngestResponse:
+        """Ingest a public GitHub repo URL.
+
+        Returns an ``ingest_id`` to attach to subsequent ``/ask``
+        requests so the engine graphs the repo's documents instead of
+        the default seed corpus.
+        """
+        url = req.source_url.strip()
+        if not url:
+            raise HTTPException(
+                status_code=422, detail="source_url must not be empty"
+            )
+        try:
+            docs, label = ingest_github(url)
+        except GitHubFetchError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        ingest = ingest_store.save(source=url, label=label, docs=docs)
+        return IngestResponse(
+            ingest_id=ingest.id,
+            source=url,
+            label=label,
+            doc_count=len(docs),
+            kind="github",
+        )
+
+    @app.post("/ingest/upload", response_model=IngestResponse)
+    async def ingest_upload(file: UploadFile = File(...)) -> IngestResponse:
+        """Ingest a CSV or XLSX attachment.
+
+        File type is dispatched by extension. The parser caps rows and
+        drops empty rows; one schema doc is prepended so the semantic
+        layer can see the column names.
+        """
+        filename = file.filename or "upload"
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=422, detail="empty file")
+
+        lower = filename.lower()
+        try:
+            if lower.endswith(".csv"):
+                docs, label = ingest_csv(data, filename)
+                kind = "csv"
+            elif lower.endswith(".xlsx") or lower.endswith(".xlsm"):
+                docs, label = ingest_xlsx(data, filename)
+                kind = "xlsx"
+            else:
+                raise HTTPException(
+                    status_code=415,
+                    detail=(
+                        f"unsupported file type: {filename!r}. "
+                        "Supported: .csv, .xlsx"
+                    ),
+                )
+        except TabularFetchError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        ingest = ingest_store.save(source=filename, label=label, docs=docs)
+        return IngestResponse(
+            ingest_id=ingest.id,
+            source=filename,
+            label=label,
+            doc_count=len(docs),
+            kind=kind,
         )
 
     @app.get("/threads", response_model=List[Thread])
