@@ -6,16 +6,16 @@ Three route groups today:
   into the shape the plugin picker consumes. The registry already
   gates optional deps via ``ImportError``, so whichever connectors are
   actually importable in the current environment show up here.
-* ``POST /ask``     — stubbed answer path. Returns realistic shapes
-  (thread id, trace steps, citations) so the frontend can be built
-  against stable contracts before the Phase 7 orchestrator lands.
+* ``POST /ask``     — routes the query through the real TemporalRAG
+  engine when Ollama is reachable; otherwise falls back to a synthetic
+  3-layer graph stub so the UI remains functional.
 * ``*    /threads`` — in-memory thread storage via :class:`ThreadStore`.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +32,7 @@ from kairo_core.models import (
     TraversalTrace,
 )
 
+from .engine import current_model, get_engine, seed_documents
 from .models import (
     AskRequest,
     AskResponse,
@@ -95,9 +96,31 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             Message(role="user", content=req.query, created_at=now),
         )
 
-        answer_text = _stub_answer(req.query, req.plugin)
-        trace = _stub_trace(req.query, req.plugin)
-        graph_data, traversal_trace = _stub_layered_graph(req.query)
+        runner = get_engine()
+        if runner is None:
+            # Ollama unreachable — return the stub so the UI still works.
+            answer_text, trace, graph_data, traversal_trace, stubbed = (
+                _stub_response(req.query, req.plugin)
+            )
+        else:
+            try:
+                result = runner.run(
+                    req.query, seed_documents(), session_id=thread.id
+                )
+                answer_text = result.answer
+                trace = _trace_from_result(result)
+                graph_data = result.graph_data
+                traversal_trace = result.rag_result.trace
+                stubbed = False
+            except Exception as exc:  # noqa: BLE001 — surface engine errors in-UI
+                answer_text, trace, graph_data, traversal_trace, stubbed = (
+                    _stub_response(
+                        req.query,
+                        req.plugin,
+                        note=f"Engine error: {type(exc).__name__}: {exc}",
+                    )
+                )
+
         store.append_message(
             thread.id,
             Message(role="assistant", content=answer_text, created_at=datetime.now(timezone.utc)),
@@ -108,7 +131,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             answer=answer_text,
             citations=[],
             trace=trace,
-            stubbed=True,
+            stubbed=stubbed,
             graph_data=graph_data,
             traversal_trace=traversal_trace,
         )
@@ -147,13 +170,71 @@ def _flatten_manifest(m: PluginManifest) -> PluginSummary:
     )
 
 
-def _stub_answer(query: str, plugin: str | None) -> str:
+def _stub_response(
+    query: str,
+    plugin: Optional[str],
+    *,
+    note: Optional[str] = None,
+) -> Tuple[str, List[TraceStep], LayeredGraphData, TraversalTrace, bool]:
+    """Full stub payload, used when the engine is unavailable."""
+    prefix = "[stubbed]"
+    if note:
+        prefix = f"[stubbed — {note}]"
     target = f" against the {plugin!r} connector" if plugin else ""
-    return (
-        f"[stubbed] Kairo AI will route this query{target} through the "
-        "TemporalRAG orchestrator once Phase 7 lands. You asked: "
-        f"{query.strip()!r}."
+    answer = (
+        f"{prefix} Kairo's TemporalRAG engine isn't reachable right now — "
+        f"start Ollama and retry. Query{target}: {query.strip()!r}."
     )
+    trace = _stub_trace(query, plugin)
+    graph_data, traversal = _stub_layered_graph(query)
+    return answer, trace, graph_data, traversal, True
+
+
+def _trace_from_result(result) -> List[TraceStep]:
+    """Map an :class:`EngineResult` into the UI's ``TraceStep`` list.
+
+    One step for the plan, one per agent finding, plus a final
+    snapshot marker carrying the traversal snapshot id.
+    """
+    plan = result.plan
+    steps: List[TraceStep] = [
+        TraceStep(
+            step=1,
+            kind="plan",
+            summary=(
+                f"Supervisor planned {len(plan.tasks)} agent(s): "
+                + ", ".join(f"{t.role}" for t in plan.tasks)
+            ),
+            metadata={"reasoning": plan.scaling_reason or ""},
+        )
+    ]
+    for i, finding in enumerate(result.findings, start=2):
+        kind = "synthesize" if finding.role == "synthesizer" else "retrieve"
+        output = (finding.output or "").strip()
+        summary = output[:160] + ("…" if len(output) > 160 else "")
+        if not summary:
+            summary = f"{finding.role} ({finding.agent_name}) produced no output"
+        steps.append(
+            TraceStep(
+                step=i,
+                kind=kind,
+                summary=f"{finding.role}: {summary}",
+                metadata={"agent": finding.agent_name, "role": finding.role},
+            )
+        )
+    steps.append(
+        TraceStep(
+            step=len(steps) + 1,
+            kind="note",
+            summary=(
+                f"Snapshot {result.rag_result.snapshot_id[:8]} "
+                f"({'cache' if result.rag_result.from_cache else 'fresh'}) "
+                f"· model={current_model() or 'n/a'}"
+            ),
+            snapshot_id=result.rag_result.snapshot_id,
+        )
+    )
+    return steps
 
 
 def _stub_layered_graph(query: str) -> tuple[LayeredGraphData, TraversalTrace]:
