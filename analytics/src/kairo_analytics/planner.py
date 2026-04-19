@@ -23,12 +23,16 @@ _CHART_INTENT = (
     "distribution", "histogram", "breakdown", "pairwise",
     "compare", "trend", "trends", "over time", "top", "bottom",
     "summary", "summarize", "describe", "statistics", "stats",
+    "scatter", " vs ", "versus", "against", "relationship",
+    "correlation", "correlate", "correlates", "corr matrix",
 )
 
 _HIST_HINT = ("distribution", "histogram", "spread", "range of")
 _LINE_HINT = ("trend", "trends", "over time", "time series", "daily", "weekly", "monthly", "yearly")
 _BAR_HINT = ("compare", "breakdown", "top", "bottom", " by ", " per ")
 _STATS_HINT = ("summary", "summarize", "describe", "statistics", "stats", "mean of", "average of")
+_SCATTER_HINT = ("scatter", " vs ", "versus", "against", "relationship between")
+_CORR_HINT = ("correlation", "correlate", "correlates", "pairwise", "corr matrix")
 
 
 def has_chart_intent(query: str) -> bool:
@@ -111,6 +115,37 @@ def build_plans(
                 tool="describe",
                 columns=[c.name for c in chosen],
                 rationale="stats keyword triggered descriptive summary",
+            )
+        )
+
+    # 5. Scatter (x vs y)
+    if _hits(q, _SCATTER_HINT):
+        mentioned_numeric = [c for c in mentioned if c.kind == "numeric"]
+        if len(mentioned_numeric) >= 2:
+            x, y = mentioned_numeric[0], mentioned_numeric[1]
+        elif len(numeric) >= 2:
+            x, y = numeric[0], numeric[1]
+        else:
+            x = y = None
+        if x and y:
+            plans.append(
+                AnalyticsPlan(
+                    tool="scatter",
+                    columns=[x.name, y.name],
+                    rationale=f"scatter keyword + numeric columns '{x.name}', '{y.name}'",
+                )
+            )
+
+    # 6. Correlation matrix
+    if _hits(q, _CORR_HINT) and len(numeric) >= 2:
+        mentioned_numeric = [c for c in mentioned if c.kind == "numeric"]
+        chosen = mentioned_numeric if len(mentioned_numeric) >= 2 else numeric[:6]
+        plans.append(
+            AnalyticsPlan(
+                tool="correlation",
+                columns=[c.name for c in chosen],
+                params={"method": "pearson"},
+                rationale=f"correlation keyword over {len(chosen)} numeric columns",
             )
         )
 

@@ -8,9 +8,12 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 import type { ChartSpec } from "@/lib/types";
 
@@ -48,6 +51,10 @@ function ChartBody({ chart }: { chart: ChartSpec }) {
   const seriesNames = chart.series.map((s) => s.name);
 
   switch (chart.kind) {
+    case "scatter":
+      return <ScatterBody chart={chart} />;
+    case "pairwise":
+      return <PairwiseHeatmap chart={chart} />;
     case "line":
       return (
         <ResponsiveContainer width="100%" height="100%">
@@ -148,6 +155,108 @@ function axisLabel(
     offset: position === "bottom" ? -2 : 0,
     angle: position === "left" ? -90 : 0,
   };
+}
+
+function ScatterBody({ chart }: { chart: ChartSpec }) {
+  const ys = (chart.series[0]?.data ?? []) as Array<number | null>;
+  const points = chart.x_values
+    .map((x, i) => ({ x: Number(x), y: ys[i] }))
+    .filter((p) => p.y !== null && Number.isFinite(p.x) && Number.isFinite(p.y as number));
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+        <CartesianGrid stroke="#2a2b2b" strokeDasharray="3 3" />
+        <XAxis
+          type="number"
+          dataKey="x"
+          stroke="#8a8a8a"
+          tick={{ fontSize: 11 }}
+          label={axisLabel(chart.x_label, "bottom")}
+        />
+        <YAxis
+          type="number"
+          dataKey="y"
+          stroke="#8a8a8a"
+          tick={{ fontSize: 11 }}
+          label={axisLabel(chart.y_label, "left")}
+        />
+        <ZAxis range={[50, 50]} />
+        <Tooltip
+          cursor={{ strokeDasharray: "3 3", stroke: "#555" }}
+          contentStyle={{
+            background: "#1a1a1a",
+            border: "1px solid #2a2b2b",
+            fontSize: 12,
+          }}
+        />
+        <Scatter data={points} fill={SERIES_COLORS[0]} />
+      </ScatterChart>
+    </ResponsiveContainer>
+  );
+}
+
+function PairwiseHeatmap({ chart }: { chart: ChartSpec }) {
+  const cols = chart.x_values as string[];
+  const matrix = chart.series.map((s) => s.data as Array<number | null>);
+
+  return (
+    <div className="h-full w-full overflow-auto">
+      <table className="border-collapse text-xs">
+        <thead>
+          <tr>
+            <th className="p-1 text-muted text-right font-normal"></th>
+            {cols.map((c) => (
+              <th
+                key={c}
+                className="p-1 text-muted font-normal text-center"
+                style={{ minWidth: 48 }}
+              >
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {cols.map((rowCol, i) => (
+            <tr key={rowCol}>
+              <th className="p-1 text-muted text-right font-normal">{rowCol}</th>
+              {matrix[i].map((v, j) => (
+                <td
+                  key={j}
+                  className="p-1 text-center tabular-nums"
+                  style={{
+                    background: corrColor(v),
+                    color: corrTextColor(v),
+                    minWidth: 48,
+                    border: "1px solid #1a1a1a",
+                  }}
+                >
+                  {v === null ? "—" : v.toFixed(2)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function corrColor(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "#151515";
+  const t = Math.max(-1, Math.min(1, v));
+  if (t >= 0) {
+    const a = 0.15 + 0.6 * t;
+    return `rgba(139, 177, 255, ${a})`;
+  }
+  const a = 0.15 + 0.6 * -t;
+  return `rgba(255, 162, 139, ${a})`;
+}
+
+function corrTextColor(v: number | null): string {
+  if (v === null) return "#666";
+  return Math.abs(v) > 0.6 ? "#0a0a0a" : "#d4d4d4";
 }
 
 export function ChartStack({ charts }: { charts: ChartSpec[] }) {
