@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from kairo_core import ChartSpec
 from kairo_core.models import LayeredGraphData, TraversalTrace
 
 
@@ -97,6 +98,10 @@ class AskResponse(BaseModel):
     # 3D viz renders these with a halo + brighter glow to distinguish
     # "cited in answer" from "merely visited during traversal".
     cited_node_ids: List[str] = Field(default_factory=list)
+    # Precomputed chart payloads the UI renders directly. Populated by the
+    # analytics planner+runner when the query has chart intent and an
+    # ingest with a DataFrame is attached.
+    charts: List[ChartSpec] = Field(default_factory=list)
 
 
 class Thread(BaseModel):

@@ -20,8 +20,15 @@ from typing import List, Optional, Tuple
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from kairo_analytics import (
+    AnalyticsRunner,
+    build_plans,
+    has_chart_intent,
+    infer_columns,
+)
 from kairo_connectors import list_manifests
 from kairo_connectors.plugin import PluginManifest
+from kairo_core import AnalyticsPlan, ChartSpec
 from kairo_core.models import (
     GraphData,
     GraphEdge,
@@ -82,6 +89,9 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
     ingest_store = IngestStore()
     app.state.ingest_store = ingest_store
 
+    analytics_runner = AnalyticsRunner()
+    app.state.analytics_runner = analytics_runner
+
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok"}
@@ -114,15 +124,16 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
         #   otherwise → the Kairo self-description seed corpus.
         documents = seed_documents()
         ingest_label: Optional[str] = None
+        ingest_obj = None
         if req.ingest_id:
-            ingest = ingest_store.get(req.ingest_id)
-            if ingest is None:
+            ingest_obj = ingest_store.get(req.ingest_id)
+            if ingest_obj is None:
                 raise HTTPException(
                     status_code=404,
                     detail=f"unknown ingest_id: {req.ingest_id}",
                 )
-            documents = ingest.documents
-            ingest_label = ingest.label
+            documents = ingest_obj.documents
+            ingest_label = ingest_obj.label
 
         # Session id per (thread, ingest) so the snapshot cache doesn't
         # alias a GitHub-graph with a seed-graph in the same thread.
@@ -157,6 +168,12 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
                     )
                 )
 
+        charts, analytics_steps = _run_analytics(
+            req.query, ingest_obj, analytics_runner, starting_step=len(trace) + 1
+        )
+        if analytics_steps:
+            trace.extend(analytics_steps)
+
         store.append_message(
             thread.id,
             Message(role="assistant", content=answer_text, created_at=datetime.now(timezone.utc)),
@@ -171,6 +188,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             graph_data=graph_data,
             traversal_trace=traversal_trace,
             cited_node_ids=cited_node_ids,
+            charts=charts,
         )
 
     @app.post("/ingest", response_model=IngestResponse)
@@ -190,7 +208,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             docs, label = ingest_github(url)
         except GitHubFetchError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        ingest = ingest_store.save(source=url, label=label, docs=docs)
+        ingest = ingest_store.save(source=url, label=label, docs=docs, kind="github")
         return IngestResponse(
             ingest_id=ingest.id,
             source=url,
@@ -215,10 +233,10 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
         lower = filename.lower()
         try:
             if lower.endswith(".csv"):
-                docs, label = ingest_csv(data, filename)
+                docs, label, dataframe = ingest_csv(data, filename)
                 kind = "csv"
             elif lower.endswith(".xlsx") or lower.endswith(".xlsm"):
-                docs, label = ingest_xlsx(data, filename)
+                docs, label, dataframe = ingest_xlsx(data, filename)
                 kind = "xlsx"
             else:
                 raise HTTPException(
@@ -231,7 +249,10 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
         except TabularFetchError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-        ingest = ingest_store.save(source=filename, label=label, docs=docs)
+        ingest = ingest_store.save(
+            source=filename, label=label, docs=docs,
+            kind=kind, dataframe=dataframe,
+        )
         return IngestResponse(
             ingest_id=ingest.id,
             source=filename,
@@ -292,6 +313,65 @@ def _stub_response(
     trace = _stub_trace(query, plugin)
     graph_data, traversal = _stub_layered_graph(query)
     return answer, trace, graph_data, traversal, True
+
+
+def _run_analytics(
+    query: str,
+    ingest,
+    runner: AnalyticsRunner,
+    *,
+    starting_step: int,
+) -> Tuple[List[ChartSpec], List[TraceStep]]:
+    """Run the analytics pipeline against a tabular ingest, if applicable.
+
+    Returns (charts, trace_steps). An empty (charts, steps) pair means
+    the ingest isn't tabular, there's no chart intent, or no plan survived
+    validation.
+    """
+    if ingest is None or ingest.dataframe is None or ingest.dataframe.empty:
+        return [], []
+    if not has_chart_intent(query):
+        return [], []
+
+    columns = infer_columns(ingest.dataframe)
+    plans: List[AnalyticsPlan] = build_plans(query, columns)
+    if not plans:
+        return [], []
+
+    charts: List[ChartSpec] = []
+    steps: List[TraceStep] = []
+    step_no = starting_step
+    for plan in plans:
+        result = runner.run(ingest.dataframe, plan)
+        if result.error:
+            steps.append(
+                TraceStep(
+                    step=step_no,
+                    kind="note",
+                    summary=f"analyst: {plan.tool} failed — {result.error}",
+                    metadata={"tool": plan.tool, "columns": plan.columns},
+                )
+            )
+        else:
+            if result.chart is not None:
+                charts.append(result.chart)
+            summary = f"analyst: {plan.tool}({', '.join(plan.columns)})"
+            if plan.rationale:
+                summary = f"{summary} — {plan.rationale}"
+            steps.append(
+                TraceStep(
+                    step=step_no,
+                    kind="tool",
+                    summary=summary,
+                    metadata={
+                        "tool": plan.tool,
+                        "columns": plan.columns,
+                        "params": plan.params,
+                    },
+                )
+            )
+        step_no += 1
+    return charts, steps
 
 
 def _cited_ids(result, *, max_ids: int = 12, min_score: float = 0.15) -> List[str]:

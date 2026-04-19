@@ -30,7 +30,9 @@ import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
 
 from kairo_core import Document
 
@@ -46,6 +48,8 @@ class Ingest:
     source: str
     label: str
     documents: List[Document]
+    kind: str = "other"  # "github" | "csv" | "xlsx" | "other"
+    dataframe: Optional[pd.DataFrame] = None  # populated for tabular kinds only
     created_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -62,12 +66,22 @@ class IngestStore:
         self._by_id: Dict[str, Ingest] = {}
         self._lock = threading.Lock()
 
-    def save(self, source: str, label: str, docs: List[Document]) -> Ingest:
+    def save(
+        self,
+        source: str,
+        label: str,
+        docs: List[Document],
+        *,
+        kind: str = "other",
+        dataframe: Optional[pd.DataFrame] = None,
+    ) -> Ingest:
         ingest = Ingest(
             id=uuid.uuid4().hex,
             source=source,
             label=label,
             documents=docs,
+            kind=kind,
+            dataframe=dataframe,
         )
         with self._lock:
             self._by_id[ingest.id] = ingest
@@ -419,11 +433,13 @@ def _row_to_text(row: Dict[str, object]) -> str:
     return "\n".join(parts)
 
 
-def ingest_csv(data: bytes, filename: str) -> Tuple[List[Document], str]:
-    """Parse a CSV into row-documents.
+def ingest_csv(data: bytes, filename: str) -> Tuple[List[Document], str, pd.DataFrame]:
+    """Parse a CSV into row-documents and a DataFrame.
 
     First row is treated as a header; subsequent rows become one
-    ``Document`` each. Empty/all-blank rows are skipped.
+    ``Document`` each. Empty/all-blank rows are skipped. The DataFrame
+    is returned alongside so the analytics pipeline can operate on the
+    same row set without re-parsing.
     """
     try:
         text = data.decode("utf-8-sig")
@@ -433,11 +449,12 @@ def ingest_csv(data: bytes, filename: str) -> Tuple[List[Document], str]:
     reader = csv.DictReader(io.StringIO(text))
     if reader.fieldnames is None:
         raise TabularFetchError(f"{filename!r} has no header row")
+    fieldnames = list(reader.fieldnames)
+
+    rows: List[Dict[str, Any]] = list(reader)[:_MAX_ROWS]
 
     docs: List[Document] = []
-    for idx, row in enumerate(reader):
-        if idx >= _MAX_ROWS:
-            break
+    for idx, row in enumerate(rows):
         body = _row_to_text(row)
         if not body:
             continue
@@ -456,17 +473,24 @@ def ingest_csv(data: bytes, filename: str) -> Tuple[List[Document], str]:
     if not docs:
         raise TabularFetchError(f"{filename!r} had no usable rows")
 
-    # One schema doc so the semantic layer can reason about columns.
     schema_doc = Document(
         id=f"{filename}:schema",
-        text="columns: " + ", ".join(reader.fieldnames),
+        text="columns: " + ", ".join(fieldnames),
         metadata={"kind": "csv_schema", "source_file": filename},
     )
-    return [schema_doc] + docs, filename
+    df = pd.DataFrame(rows, columns=fieldnames)
+    df = _coerce_numeric(df)
+    return [schema_doc] + docs, filename, df
 
 
-def ingest_xlsx(data: bytes, filename: str) -> Tuple[List[Document], str]:
-    """Parse an XLSX into row-documents. Requires ``openpyxl``."""
+def ingest_xlsx(data: bytes, filename: str) -> Tuple[List[Document], str, pd.DataFrame]:
+    """Parse an XLSX into row-documents and a concatenated DataFrame.
+
+    Rows from every sheet are merged into a single DataFrame (with a
+    ``_sheet`` column) so the analytics pipeline can operate uniformly.
+    Per-sheet Documents keep the ``sheet`` metadata so RAG retrieval
+    still distinguishes them.
+    """
     try:
         from openpyxl import load_workbook  # type: ignore[import-not-found]
     except ImportError as exc:
@@ -480,6 +504,7 @@ def ingest_xlsx(data: bytes, filename: str) -> Tuple[List[Document], str]:
     )
     docs: List[Document] = []
     all_columns: List[str] = []
+    merged_rows: List[Dict[str, Any]] = []
 
     for ws in wb.worksheets:
         rows = ws.iter_rows(values_only=True)
@@ -510,6 +535,7 @@ def ingest_xlsx(data: bytes, filename: str) -> Tuple[List[Document], str]:
                     },
                 )
             )
+            merged_rows.append({"_sheet": ws.title, **mapping})
 
     if not docs:
         raise TabularFetchError(f"{filename!r} had no usable rows")
@@ -519,4 +545,23 @@ def ingest_xlsx(data: bytes, filename: str) -> Tuple[List[Document], str]:
         text="columns: " + ", ".join(all_columns),
         metadata={"kind": "xlsx_schema", "source_file": filename},
     )
-    return [schema_doc] + docs, filename
+    df = pd.DataFrame(merged_rows)
+    df = _coerce_numeric(df)
+    return [schema_doc] + docs, filename, df
+
+
+def _coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
+    """Promote string columns to numeric where every non-null value parses.
+
+    csv.DictReader yields strings for every cell; pd.DataFrame preserves
+    them as object-dtype. Without this pass, numeric columns like
+    ``"42"`` stay as strings and the planner misclassifies them.
+    """
+    for col in df.columns:
+        if df[col].dtype != object:
+            continue
+        coerced = pd.to_numeric(df[col], errors="coerce")
+        non_null = df[col].notna() & (df[col] != "")
+        if non_null.any() and (coerced.notna() & non_null).sum() / non_null.sum() >= 0.95:
+            df[col] = coerced
+    return df

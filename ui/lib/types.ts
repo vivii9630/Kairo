@@ -69,6 +69,35 @@ export interface AskResponse {
   graph_data?: LayeredGraphData | null;
   traversal_trace?: TraversalTrace | null;
   cited_node_ids?: string[];
+  charts?: ChartSpec[];
+}
+
+// ---------------------------------------------------------------------------
+// Analytics types (mirrors kairo-core analytics_models)
+// ---------------------------------------------------------------------------
+
+export type ChartKind =
+  | "bar"
+  | "line"
+  | "pie"
+  | "scatter"
+  | "histogram"
+  | "pairwise";
+
+export interface ChartSeries {
+  name: string;
+  data: Array<number | string | null>;
+}
+
+export interface ChartSpec {
+  kind: ChartKind;
+  title: string;
+  subtitle?: string | null;
+  x_label?: string | null;
+  y_label?: string | null;
+  x_values: Array<number | string>;
+  series: ChartSeries[];
+  metadata: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------

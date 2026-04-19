@@ -5,6 +5,7 @@ import Image from "next/image";
 import { api } from "@/lib/api";
 import type {
   AskResponse,
+  ChartSpec,
   IngestResponse,
   LayeredGraphData,
   Message,
@@ -18,6 +19,7 @@ import { TopNav } from "@/components/TopNav";
 import { AskBox } from "@/components/AskBox";
 import { MessageList } from "@/components/MessageList";
 import { TracePanel } from "@/components/TracePanel";
+import { ChartStack } from "@/components/ChartBlock";
 
 const SUGGESTIONS = [
   "Summarize the most recent changes in my GitHub repo",
@@ -36,6 +38,7 @@ export default function HomePage() {
   const [graphData, setGraphData] = useState<LayeredGraphData | null>(null);
   const [traversalTrace, setTraversalTrace] = useState<TraversalTrace | null>(null);
   const [citedNodeIds, setCitedNodeIds] = useState<string[]>([]);
+  const [charts, setCharts] = useState<ChartSpec[]>([]);
   const [stubbed, setStubbed] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +71,7 @@ export default function HomePage() {
     setGraphData(null);
     setTraversalTrace(null);
     setCitedNodeIds([]);
+    setCharts([]);
     setDraft("");
     setIngest(null);
     setIngestError(null);
@@ -80,6 +84,7 @@ export default function HomePage() {
     setGraphData(null);
     setTraversalTrace(null);
     setCitedNodeIds([]);
+    setCharts([]);
     setError(null);
     setDraft("");
     setIngest(null);
@@ -142,6 +147,7 @@ export default function HomePage() {
       setGraphData(res.graph_data ?? null);
       setTraversalTrace(res.traversal_trace ?? null);
       setCitedNodeIds(res.cited_node_ids ?? []);
+      setCharts(res.charts ?? []);
       setStubbed(res.stubbed);
       if (!activeThread) {
         const t = await api.getThread(res.thread_id);
@@ -199,6 +205,7 @@ export default function HomePage() {
                 onAsk={handleAsk}
                 draft={draft}
                 onDraftChange={setDraft}
+                charts={charts}
                 ingest={ingest}
                 ingestPending={ingestPending}
                 ingestError={ingestError}
@@ -333,6 +340,7 @@ function ThreadView({
   onAsk,
   draft,
   onDraftChange,
+  charts,
   ingest,
   ingestPending,
   ingestError,
@@ -348,12 +356,13 @@ function ThreadView({
   onAsk: (q: string) => void;
   draft: string;
   onDraftChange: (v: string) => void;
+  charts: ChartSpec[];
 } & IngestProps) {
   return (
     <>
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <MessageList messages={messages} pending={pending} />
+          <MessageList messages={messages} pending={pending} charts={charts} />
         </div>
       </div>
       <div className="border-t border-hair">
