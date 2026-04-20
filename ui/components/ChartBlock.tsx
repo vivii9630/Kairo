@@ -158,10 +158,22 @@ function axisLabel(
 }
 
 function ScatterBody({ chart }: { chart: ChartSpec }) {
-  const ys = (chart.series[0]?.data ?? []) as Array<number | null>;
-  const points = chart.x_values
-    .map((x, i) => ({ x: Number(x), y: ys[i] }))
-    .filter((p) => p.y !== null && Number.isFinite(p.x) && Number.isFinite(p.y as number));
+  const xs = chart.x_values as Array<number | string>;
+  const seriesGroups = chart.series.map((s, i) => ({
+    name: s.name,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+    points: xs
+      .map((x, j) => ({ x: Number(x), y: (s.data[j] ?? null) as number | null }))
+      .filter(
+        (p) =>
+          p.y !== null &&
+          Number.isFinite(p.x) &&
+          Number.isFinite(p.y as number)
+      ),
+  }));
+
+  const fitLine = extractFitLine(chart);
+  const showLegend = seriesGroups.length > 1;
 
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -190,10 +202,39 @@ function ScatterBody({ chart }: { chart: ChartSpec }) {
             fontSize: 12,
           }}
         />
-        <Scatter data={points} fill={SERIES_COLORS[0]} />
+        {showLegend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {seriesGroups.map((g) => (
+          <Scatter key={g.name} name={g.name} data={g.points} fill={g.color} />
+        ))}
+        {fitLine && (
+          <Scatter
+            name="fit"
+            data={fitLine}
+            fill="#ffd56b"
+            line={{ stroke: "#ffd56b", strokeWidth: 2 }}
+            shape={() => null as unknown as React.ReactElement}
+            legendType="none"
+          />
+        )}
       </ScatterChart>
     </ResponsiveContainer>
   );
+}
+
+function extractFitLine(chart: ChartSpec): Array<{ x: number; y: number }> | null {
+  const md = chart.metadata ?? {};
+  const xs = md.x_line as unknown;
+  const ys = md.y_line as unknown;
+  if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length !== 2 || ys.length !== 2) {
+    return null;
+  }
+  const [x0, x1] = xs.map(Number);
+  const [y0, y1] = ys.map(Number);
+  if (![x0, x1, y0, y1].every(Number.isFinite)) return null;
+  return [
+    { x: x0, y: y0 },
+    { x: x1, y: y1 },
+  ];
 }
 
 function PairwiseHeatmap({ chart }: { chart: ChartSpec }) {

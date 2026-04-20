@@ -27,6 +27,8 @@ _CHART_INTENT = (
     "correlation", "correlate", "correlates", "corr matrix",
     "forecast", "forecasts", "predict", "prediction", "projection", "project ",
     "next week", "next month", "next year", "future", "upcoming",
+    "cluster", "clusters", "segment", "segments", "kmeans", "k-means",
+    "regression", "linear fit", "fit a line", "trendline", "best fit",
 )
 
 _HIST_HINT = ("distribution", "histogram", "spread", "range of")
@@ -40,6 +42,8 @@ _FORECAST_HINT = (
     "project ", "next week", "next month", "next year", "upcoming",
     "future values", "what's next", "whats next",
 )
+_CLUSTER_HINT = ("cluster", "clusters", "kmeans", "k-means", "segment", "segments", "group into")
+_REGRESS_HINT = ("regression", "linear fit", "fit a line", "trendline", "best fit", "linear regression")
 
 
 def has_chart_intent(query: str) -> bool:
@@ -170,6 +174,38 @@ def build_plans(
             )
         )
 
+    # 8. KMeans clustering (2 numeric columns)
+    if _hits(q, _CLUSTER_HINT) and len(numeric) >= 2:
+        mentioned_numeric = [c for c in mentioned if c.kind == "numeric"]
+        if len(mentioned_numeric) >= 2:
+            x, y = mentioned_numeric[0], mentioned_numeric[1]
+        else:
+            x, y = numeric[0], numeric[1]
+        k = _extract_k(q) or 3
+        plans.append(
+            AnalyticsPlan(
+                tool="kmeans",
+                columns=[x.name, y.name],
+                params={"k": k},
+                rationale=f"cluster keyword + numeric columns '{x.name}', '{y.name}' into k={k}",
+            )
+        )
+
+    # 9. Linear regression (2 numeric columns)
+    if _hits(q, _REGRESS_HINT) and len(numeric) >= 2:
+        mentioned_numeric = [c for c in mentioned if c.kind == "numeric"]
+        if len(mentioned_numeric) >= 2:
+            x, y = mentioned_numeric[0], mentioned_numeric[1]
+        else:
+            x, y = numeric[0], numeric[1]
+        plans.append(
+            AnalyticsPlan(
+                tool="linear_regression",
+                columns=[x.name, y.name],
+                rationale=f"regression keyword + numeric columns '{x.name}' -> '{y.name}'",
+            )
+        )
+
     # Fallback: chart intent without a specific match — default by schema shape.
     if not plans and has_chart_intent(query):
         if categorical and numeric:
@@ -215,6 +251,16 @@ def _pick(columns: List[ColumnInfo], kind: str) -> Optional[ColumnInfo]:
 
 def _extract_top_n(q: str) -> Optional[int]:
     m = re.search(r"\btop\s+(\d+)", q)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def _extract_k(q: str) -> Optional[int]:
+    m = re.search(r"\b(?:into|k\s*=)\s*(\d+)\b", q)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"\b(\d+)\s+clusters?\b", q)
     if m:
         return int(m.group(1))
     return None
