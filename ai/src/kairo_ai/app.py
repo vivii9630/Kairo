@@ -28,7 +28,7 @@ from kairo_analytics import (
 )
 from kairo_connectors import list_manifests
 from kairo_connectors.plugin import PluginManifest
-from kairo_core import AnalyticsPlan, ChartSpec
+from kairo_core import AnalyticsPlan, ChartSpec, ForecastSpec
 from kairo_core.models import (
     GraphData,
     GraphEdge,
@@ -168,7 +168,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
                     )
                 )
 
-        charts, analytics_steps = _run_analytics(
+        charts, forecasts, analytics_steps = _run_analytics(
             req.query, ingest_obj, analytics_runner, starting_step=len(trace) + 1
         )
         if analytics_steps:
@@ -189,6 +189,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             traversal_trace=traversal_trace,
             cited_node_ids=cited_node_ids,
             charts=charts,
+            forecasts=forecasts,
         )
 
     @app.post("/ingest", response_model=IngestResponse)
@@ -321,24 +322,24 @@ def _run_analytics(
     runner: AnalyticsRunner,
     *,
     starting_step: int,
-) -> Tuple[List[ChartSpec], List[TraceStep]]:
+) -> Tuple[List[ChartSpec], List[ForecastSpec], List[TraceStep]]:
     """Run the analytics pipeline against a tabular ingest, if applicable.
 
-    Returns (charts, trace_steps). An empty (charts, steps) pair means
-    the ingest isn't tabular, there's no chart intent, or no plan survived
-    validation.
+    Returns (charts, forecasts, trace_steps). Empty lists mean the ingest
+    isn't tabular, there's no chart intent, or no plan survived validation.
     """
     if ingest is None or ingest.dataframe is None or ingest.dataframe.empty:
-        return [], []
+        return [], [], []
     if not has_chart_intent(query):
-        return [], []
+        return [], [], []
 
     columns = infer_columns(ingest.dataframe)
     plans: List[AnalyticsPlan] = build_plans(query, columns)
     if not plans:
-        return [], []
+        return [], [], []
 
     charts: List[ChartSpec] = []
+    forecasts: List[ForecastSpec] = []
     steps: List[TraceStep] = []
     step_no = starting_step
     for plan in plans:
@@ -355,6 +356,8 @@ def _run_analytics(
         else:
             if result.chart is not None:
                 charts.append(result.chart)
+            if result.forecast is not None:
+                forecasts.append(result.forecast)
             summary = f"analyst: {plan.tool}({', '.join(plan.columns)})"
             if plan.rationale:
                 summary = f"{summary} — {plan.rationale}"
@@ -371,7 +374,7 @@ def _run_analytics(
                 )
             )
         step_no += 1
-    return charts, steps
+    return charts, forecasts, steps
 
 
 def _cited_ids(result, *, max_ids: int = 12, min_score: float = 0.15) -> List[str]:

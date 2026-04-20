@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type {
   AskResponse,
   ChartSpec,
+  ForecastSpec,
   IngestResponse,
   LayeredGraphData,
   Message,
@@ -39,6 +40,7 @@ export default function HomePage() {
   const [traversalTrace, setTraversalTrace] = useState<TraversalTrace | null>(null);
   const [citedNodeIds, setCitedNodeIds] = useState<string[]>([]);
   const [charts, setCharts] = useState<ChartSpec[]>([]);
+  const [forecasts, setForecasts] = useState<ForecastSpec[]>([]);
   const [stubbed, setStubbed] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +74,7 @@ export default function HomePage() {
     setTraversalTrace(null);
     setCitedNodeIds([]);
     setCharts([]);
+    setForecasts([]);
     setDraft("");
     setIngest(null);
     setIngestError(null);
@@ -85,6 +88,7 @@ export default function HomePage() {
     setTraversalTrace(null);
     setCitedNodeIds([]);
     setCharts([]);
+    setForecasts([]);
     setError(null);
     setDraft("");
     setIngest(null);
@@ -148,6 +152,7 @@ export default function HomePage() {
       setTraversalTrace(res.traversal_trace ?? null);
       setCitedNodeIds(res.cited_node_ids ?? []);
       setCharts(res.charts ?? []);
+      setForecasts(res.forecasts ?? []);
       setStubbed(res.stubbed);
       if (!activeThread) {
         const t = await api.getThread(res.thread_id);
@@ -206,6 +211,7 @@ export default function HomePage() {
                 draft={draft}
                 onDraftChange={setDraft}
                 charts={charts}
+                forecasts={forecasts}
                 ingest={ingest}
                 ingestPending={ingestPending}
                 ingestError={ingestError}
@@ -341,6 +347,7 @@ function ThreadView({
   draft,
   onDraftChange,
   charts,
+  forecasts,
   ingest,
   ingestPending,
   ingestError,
@@ -357,12 +364,18 @@ function ThreadView({
   draft: string;
   onDraftChange: (v: string) => void;
   charts: ChartSpec[];
+  forecasts: ForecastSpec[];
 } & IngestProps) {
   return (
     <>
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <MessageList messages={messages} pending={pending} charts={charts} />
+          <MessageList
+            messages={messages}
+            pending={pending}
+            charts={charts}
+            forecasts={forecasts}
+          />
         </div>
       </div>
       <div className="border-t border-hair">

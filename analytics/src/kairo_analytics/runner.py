@@ -11,8 +11,9 @@ from kairo_core import AnalyticsPlan, AnalyticsResult
 from .registry import lookup_tool, tool_names
 
 # Importing submodules registers their tools as a side effect.
-from . import charting  # noqa: F401
-from . import stats  # noqa: F401
+# Forecasting imports cleanly even without statsmodels — the heavy import
+# is deferred to handler-invocation time.
+from . import charting, forecasting, stats  # noqa: F401
 
 
 class AnalyticsRunner:

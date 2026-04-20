@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from kairo_core import ChartSpec
+from kairo_core import ChartSpec, ForecastSpec
 from kairo_core.models import LayeredGraphData, TraversalTrace
 
 
@@ -102,6 +102,9 @@ class AskResponse(BaseModel):
     # analytics planner+runner when the query has chart intent and an
     # ingest with a DataFrame is attached.
     charts: List[ChartSpec] = Field(default_factory=list)
+    # Forecast payloads (history + forecast + confidence band) emitted by
+    # the forecast tool. UI renders these as a distinct block below charts.
+    forecasts: List[ForecastSpec] = Field(default_factory=list)
 
 
 class Thread(BaseModel):

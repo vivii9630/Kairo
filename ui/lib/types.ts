@@ -70,6 +70,7 @@ export interface AskResponse {
   traversal_trace?: TraversalTrace | null;
   cited_node_ids?: string[];
   charts?: ChartSpec[];
+  forecasts?: ForecastSpec[];
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +98,19 @@ export interface ChartSpec {
   y_label?: string | null;
   x_values: Array<number | string>;
   series: ChartSeries[];
+  metadata: Record<string, unknown>;
+}
+
+export interface ForecastSpec {
+  title: string;
+  x_label?: string | null;
+  y_label?: string | null;
+  history_x: Array<number | string>;
+  history_y: number[];
+  forecast_x: Array<number | string>;
+  forecast_y: number[];
+  forecast_lower: number[];
+  forecast_upper: number[];
   metadata: Record<string, unknown>;
 }
 

@@ -25,6 +25,8 @@ _CHART_INTENT = (
     "summary", "summarize", "describe", "statistics", "stats",
     "scatter", " vs ", "versus", "against", "relationship",
     "correlation", "correlate", "correlates", "corr matrix",
+    "forecast", "forecasts", "predict", "prediction", "projection", "project ",
+    "next week", "next month", "next year", "future", "upcoming",
 )
 
 _HIST_HINT = ("distribution", "histogram", "spread", "range of")
@@ -33,6 +35,11 @@ _BAR_HINT = ("compare", "breakdown", "top", "bottom", " by ", " per ")
 _STATS_HINT = ("summary", "summarize", "describe", "statistics", "stats", "mean of", "average of")
 _SCATTER_HINT = ("scatter", " vs ", "versus", "against", "relationship between")
 _CORR_HINT = ("correlation", "correlate", "correlates", "pairwise", "corr matrix")
+_FORECAST_HINT = (
+    "forecast", "forecasts", "predict", "prediction", "projection",
+    "project ", "next week", "next month", "next year", "upcoming",
+    "future values", "what's next", "whats next",
+)
 
 
 def has_chart_intent(query: str) -> bool:
@@ -149,6 +156,20 @@ def build_plans(
             )
         )
 
+    # 7. Forecast (needs datetime + numeric)
+    if _hits(q, _FORECAST_HINT) and datetime_cols and numeric:
+        dt = _pick(mentioned, "datetime") or datetime_cols[0]
+        y = _pick(mentioned, "numeric") or numeric[0]
+        periods = _extract_horizon(q) or 14
+        plans.append(
+            AnalyticsPlan(
+                tool="forecast",
+                columns=[dt.name, y.name],
+                params={"periods": periods, "alpha": 0.1},
+                rationale=f"forecast keyword + datetime '{dt.name}' over numeric '{y.name}' for {periods} steps",
+            )
+        )
+
     # Fallback: chart intent without a specific match — default by schema shape.
     if not plans and has_chart_intent(query):
         if categorical and numeric:
@@ -196,4 +217,25 @@ def _extract_top_n(q: str) -> Optional[int]:
     m = re.search(r"\btop\s+(\d+)", q)
     if m:
         return int(m.group(1))
+    return None
+
+
+def _extract_horizon(q: str) -> Optional[int]:
+    m = re.search(r"\bnext\s+(\d+)\s+(day|days|week|weeks|month|months|year|years)\b", q)
+    if m:
+        n = int(m.group(1))
+        unit = m.group(2)
+        if unit.startswith("week"):
+            return n * 7
+        if unit.startswith("month"):
+            return n * 30
+        if unit.startswith("year"):
+            return n * 365
+        return n
+    if re.search(r"\bnext\s+week\b", q):
+        return 7
+    if re.search(r"\bnext\s+month\b", q):
+        return 30
+    if re.search(r"\bnext\s+year\b", q):
+        return 365
     return None
