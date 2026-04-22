@@ -49,19 +49,20 @@ Add `get_provider("default")` resolution that prefers `sentence-transformers` / 
 
 **Files touched:** `embeddings/src/kairo_embeddings/registry.py`.
 
-### 11c — Weighted edges in graph builders
+### 11c — Weighted edges in DocumentGraphBuilder
 
-Replace the current zero-edge `DocumentGraphBuilder` with one that writes similarity edges.
+Replace the current zero-edge `DocumentGraphBuilder` with one that writes similarity edges when an embedding provider is supplied.
 
-- After node creation, compute pairwise cosine over all doc embeddings.
+- `DocumentGraphBuilder(embedding_provider=..., similarity_k=5, similarity_threshold=0.3)`. Omitting the provider preserves the old node-only behavior — backward compatible.
+- After node creation, compute pairwise cosine over all doc embeddings (shared helper: `builders/_similarity.py`).
 - For each node, keep the top `k = 5` neighbors above threshold `τ = 0.3`.
-- Edge attrs: `kind = "similar-to"`, `weight = float(cosine)`.
+- Edge attrs: `kind = "similar-to"`, `weight = float(cosine)`. Pairs are deduplicated: `(a, b)` appears at most once, lower-id first.
 - Sparse by construction — on 10k docs this is ~50k edges, not 100M.
-- For > ~5k docs, skip the O(n²) pass and use an approximate neighbors index (HNSW via `hnswlib`). Deferred to 11c.2 if we hit that scale.
+- For > ~5k docs, swap the O(n²) pass for HNSW via `hnswlib`. Deferred to 11e.
 
-Applies equally to `TabularGraphBuilder` and `CodeGraphBuilder` — they all currently emit edgeless graphs. Extract the pairwise-similarity pass into a shared `builders/_similarity.py` helper.
+**Scope narrowed from the original plan:** `TabularGraphBuilder` and `CodeGraphBuilder` already emit meaningful structural edges (`has_column`, `has_row`, `contains`, `imports`, `calls`). Adding a weak semantic-similarity signal on top of those is noise, not signal — a row's row-vs-row similarity has different semantics than a document's doc-vs-doc similarity. Revisit per-builder if a concrete use case appears.
 
-**Files touched:** `graph/src/kairo_graph/builders/{document,tabular,code}.py`, new `graph/src/kairo_graph/builders/_similarity.py`.
+**Files touched:** `graph/src/kairo_graph/builders/document.py`, new `graph/src/kairo_graph/builders/_similarity.py`, `graph/pyproject.toml` (add `kairo-embeddings`, `numpy`).
 
 ### 11d — Eval harness
 

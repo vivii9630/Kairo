@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "kairo-core",
+    "kairo-embeddings",
     "networkx>=3.0",
+    "numpy>=1.24",
 ]
 
 [tool.setuptools.packages.find]
