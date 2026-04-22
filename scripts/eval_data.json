@@ -1,0 +1,39 @@
+{
+  "corpus": [
+    {"id": "a1", "text": "Cats purr when they feel content and relaxed around their owners."},
+    {"id": "a2", "text": "Felines are solitary hunters that sleep much of the day."},
+    {"id": "a3", "text": "A house cat's rough tongue is covered in tiny backward-facing spines."},
+    {"id": "a4", "text": "Dogs bark to alert their owners of intruders and unfamiliar sounds."},
+    {"id": "a5", "text": "Canines descended from wolves and were domesticated thousands of years ago."},
+    {"id": "a6", "text": "Golden retrievers are friendly family dogs known for loyalty."},
+    {"id": "p1", "text": "Python is a high-level programming language used for data analysis and web apps."},
+    {"id": "p2", "text": "JavaScript runs in browsers and powers most modern interactive web pages."},
+    {"id": "p3", "text": "Rust offers memory safety without a garbage collector through its ownership model."},
+    {"id": "p4", "text": "Type hints in modern Python make static analysis with mypy much easier."},
+    {"id": "m1", "text": "Neural networks learn patterns from labeled training data via gradient descent."},
+    {"id": "m2", "text": "Transformers use self-attention layers to model long-range token dependencies."},
+    {"id": "m3", "text": "Supervised learning requires a dataset of inputs paired with target outputs."},
+    {"id": "m4", "text": "Cross-entropy loss is standard for multi-class classification tasks."},
+    {"id": "d1", "text": "ETL pipelines move records from source systems into data warehouses nightly."},
+    {"id": "d2", "text": "A star schema organizes fact tables around shared dimension tables."},
+    {"id": "d3", "text": "Kafka streams events between services with durable, partitioned logs."},
+    {"id": "c1", "text": "Espresso is brewed by forcing hot water through finely ground coffee."},
+    {"id": "c2", "text": "A cappuccino layers espresso, steamed milk, and foamed milk in thirds."},
+    {"id": "c3", "text": "Cold brew steeps coarse grounds in cool water for twelve to twenty-four hours."}
+  ],
+  "queries": [
+    {"query": "feline purring behavior", "relevant": ["a1", "a2", "a3"]},
+    {"query": "cat tongue spines", "relevant": ["a3"]},
+    {"query": "dogs barking at intruders", "relevant": ["a4"]},
+    {"query": "dog breeds domesticated from wolves", "relevant": ["a5", "a6"]},
+    {"query": "python programming for data analysis", "relevant": ["p1", "p4"]},
+    {"query": "rust memory safety ownership", "relevant": ["p3"]},
+    {"query": "neural networks training labeled data", "relevant": ["m1", "m3"]},
+    {"query": "transformer attention for language models", "relevant": ["m2"]},
+    {"query": "classification loss function", "relevant": ["m4"]},
+    {"query": "data warehouse ETL pipelines", "relevant": ["d1", "d2"]},
+    {"query": "event streaming between microservices", "relevant": ["d3"]},
+    {"query": "espresso coffee brewing methods", "relevant": ["c1", "c2", "c3"]},
+    {"query": "cold brew steeping time", "relevant": ["c3"]}
+  ]
+}
