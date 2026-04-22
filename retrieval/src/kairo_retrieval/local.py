@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 
@@ -28,6 +28,13 @@ from kairo_embeddings import EmbeddingProvider
 RRF_K = 60
 CANDIDATE_MULTIPLIER = 10
 MIN_CANDIDATE_POOL = 50
+DEFAULT_HOP_DECAY = 0.5
+
+# Duck-typed adjacency: given a doc id, return iterable of (neighbor_id, weight).
+# Weight is typically cosine similarity in [0, 1] from the similarity edges
+# built in DocumentGraphBuilder. Callers construct this from any backing store
+# (KairoGraph, Kuzu, plain dict) so retrieval doesn't depend on kairo-graph.
+GraphNeighbors = Callable[[str], Iterable[Tuple[str, float]]]
 
 
 def _tokenize(text: str) -> List[str]:
@@ -49,10 +56,14 @@ class LocalPipeline:
         store_path: Path | str = ".kairo_store.json",
         *,
         embedding_provider: Optional[EmbeddingProvider] = None,
+        graph_neighbors: Optional[GraphNeighbors] = None,
+        hop_decay: float = DEFAULT_HOP_DECAY,
     ):
         self.store_path = Path(store_path)
         self._docs: Dict[str, Document] = {}
         self._embedding_provider = embedding_provider
+        self._graph_neighbors = graph_neighbors
+        self._hop_decay = hop_decay
         self._doc_ids: List[str] = []
         self._doc_tokens: List[List[str]] = []
         self._bm25: Optional[BM25Okapi] = None
@@ -123,14 +134,17 @@ class LocalPipeline:
         if self._bm25 is None or not candidate_idx or not query_tokens:
             return []
         all_scores = self._bm25.get_scores(query_tokens)
-        # BM25 scores can be zero or negative (IDF goes <= 0 when a term
-        # appears in >= half the corpus). We keep everything in the candidate
-        # pool and let RRF / top_k truncation handle relevance ordering —
-        # otherwise a single-doc corpus returns nothing for any query.
         subset = [(i, float(all_scores[i])) for i in candidate_idx]
-        subset.sort(key=lambda x: x[1], reverse=True)
-        subset = subset[:pool_size]
-        return [self._doc_ids[i] for i, _ in subset]
+        # Drop zero/negative-score docs IF at least one positive exists.
+        # Zero-score docs in the ranking would otherwise eat RRF rank slots
+        # and let the graph walk boost arbitrary unmatched neighbors. The
+        # "no positives at all" branch keeps the single-doc / all-stopword
+        # case from returning empty for any query.
+        positives = [(i, s) for i, s in subset if s > 0]
+        chosen = positives if positives else subset
+        chosen.sort(key=lambda x: x[1], reverse=True)
+        chosen = chosen[:pool_size]
+        return [self._doc_ids[i] for i, _ in chosen]
 
     def _cosine_ranking(
         self,
@@ -165,6 +179,36 @@ class LocalPipeline:
                 scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank_idx + 1)
         return sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
 
+    def _graph_walk_boost(
+        self,
+        seeds: List[Tuple[str, float]],
+        candidate_filter: Optional[set],
+    ) -> List[Tuple[str, float]]:
+        """Apply 1-hop additive boost from graph neighbors.
+
+        For every seed (doc_id, fused_score), pull weighted neighbors and
+        increment their score by ``seed_score * edge_weight * hop_decay``.
+        Neighbors not in the filtered candidate set are dropped.
+        """
+        if self._graph_neighbors is None or not seeds:
+            return seeds
+        scores: Dict[str, float] = {doc_id: s for doc_id, s in seeds}
+        for seed_id, seed_score in seeds:
+            try:
+                neighbors = self._graph_neighbors(seed_id)
+            except Exception:  # noqa: BLE001 - adjacency callable is user-supplied
+                continue
+            for nb_id, weight in neighbors:
+                if nb_id == seed_id or nb_id not in self._docs:
+                    continue
+                if candidate_filter is not None and nb_id not in candidate_filter:
+                    continue
+                boost = seed_score * float(weight) * self._hop_decay
+                if boost <= 0:
+                    continue
+                scores[nb_id] = scores.get(nb_id, 0.0) + boost
+        return sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+
     def _retrieve(self, request: QueryRequest) -> RetrievalResult:
         query_tokens = _tokenize(request.query)
         candidate_idx = self._filtered_indexes(request.filters or {})
@@ -181,7 +225,17 @@ class LocalPipeline:
         if not rankings:
             return RetrievalResult(evidences=[], plan="no retrievers produced results")
 
-        fused = self._rrf_fuse(rankings)[: request.top_k]
+        fused = self._rrf_fuse(rankings)
+        if self._graph_neighbors is not None:
+            seed_count = max(request.top_k, 10)
+            candidate_set = (
+                {self._doc_ids[i] for i in candidate_idx}
+                if request.filters
+                else None
+            )
+            fused = self._graph_walk_boost(fused[:seed_count], candidate_set)
+        fused = fused[: request.top_k]
+
         evidences: List[Evidence] = [
             Evidence(
                 document_id=doc_id,
@@ -192,11 +246,14 @@ class LocalPipeline:
             for doc_id, score in fused
         ]
 
-        plan = (
-            f"Hybrid BM25 + cosine via RRF (k={RRF_K})"
-            if len(rankings) == 2
-            else "BM25 lexical retrieval (no embedding provider configured)"
-        )
+        if bm25_rank and cosine_rank:
+            plan = f"Hybrid BM25 + cosine via RRF (k={RRF_K})"
+        elif cosine_rank:
+            plan = "Cosine semantic retrieval (BM25 had no matches)"
+        else:
+            plan = "BM25 lexical retrieval (no embedding provider configured)"
+        if self._graph_neighbors is not None:
+            plan += f" + 1-hop graph walk (decay={self._hop_decay})"
         return RetrievalResult(evidences=evidences, plan=plan)
 
     def query(self, request: QueryRequest) -> QueryResponse:

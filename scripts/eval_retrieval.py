@@ -1,17 +1,21 @@
-"""Phase 11d — retrieval eval harness.
+"""Phase 11d / 13a — retrieval eval harness.
 
 Runs a small labeled query set against each available LocalPipeline
 config and reports recall@k, MRR, and nDCG@k in a comparison table.
 
 Configs it will try:
 
-  - ``bm25_only``     — LocalPipeline with no embedding provider
-  - ``hybrid_hash``   — LocalPipeline + hash-stub (expected poor; included
-                        so you can see that the fusion pipeline itself
-                        works even when the semantic branch is garbage)
-  - ``hybrid_default``— LocalPipeline + get_provider("default"). Skipped
-                        automatically when sentence-transformers isn't
-                        installed.
+  - ``bm25_only``         — LocalPipeline with no embedding provider
+  - ``hybrid_hash``       — LocalPipeline + hash-stub (expected poor; included
+                            so you can see the fusion pipeline works even
+                            when the semantic branch is garbage)
+  - ``hybrid_hash+walk``  — same but with a 1-hop graph walk over similarity
+                            edges built from hash-stub embeddings
+  - ``hybrid_default``    — LocalPipeline + get_provider("default"). Skipped
+                            automatically when sentence-transformers isn't
+                            installed.
+  - ``hybrid_default+walk`` — same plus 1-hop graph walk over real-embedding
+                              similarity edges.
 
 Usage::
 
@@ -31,10 +35,11 @@ import math
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from kairo_core import Document, QueryRequest
-from kairo_embeddings import available_providers, get_provider
+from kairo_embeddings import EmbeddingProvider, available_providers, get_provider
+from kairo_graph import DocumentGraphBuilder
 from kairo_retrieval import LocalPipeline
 
 
@@ -123,29 +128,80 @@ def _run_config(
         )
 
 
-def _configs() -> Dict[str, Callable[[Path], LocalPipeline]]:
+def _build_graph_neighbors(
+    corpus: List[Document],
+    provider: EmbeddingProvider,
+    *,
+    k: int = 5,
+    threshold: float = 0.2,
+) -> Callable[[str], Iterable[Tuple[str, float]]]:
+    """Build a similarity graph over *corpus* and return a neighbor lookup.
+
+    The graph is built once with DocumentGraphBuilder using *provider*'s
+    embeddings; the returned callable then services per-doc neighbor queries
+    from an in-memory adjacency dict (handles both edge directions since
+    similarity edges are stored with lower-id-first orientation).
+    """
+    builder = DocumentGraphBuilder(
+        embedding_provider=provider,
+        similarity_k=k,
+        similarity_threshold=threshold,
+    )
+    graph = builder.build(corpus)
+    nx_g = graph.nx_graph
+
+    adjacency: Dict[str, List[Tuple[str, float]]] = {}
+    for u, v, data in nx_g.edges(data=True):
+        if data.get("kind") != "similar-to":
+            continue
+        weight = float(data.get("weight", 0.0))
+        adjacency.setdefault(u, []).append((v, weight))
+        adjacency.setdefault(v, []).append((u, weight))
+
+    def neighbors(doc_id: str) -> List[Tuple[str, float]]:
+        return adjacency.get(doc_id, [])
+
+    return neighbors
+
+
+def _configs(corpus: List[Document]) -> Dict[str, Callable[[Path], LocalPipeline]]:
+    hash_provider = get_provider("hash-stub", dim=64)
+    hash_neighbors = _build_graph_neighbors(corpus, hash_provider)
+
     configs: Dict[str, Callable[[Path], LocalPipeline]] = {
         "bm25_only": lambda p: LocalPipeline(store_path=p),
         "hybrid_hash": lambda p: LocalPipeline(
             store_path=p,
-            embedding_provider=get_provider("hash-stub", dim=64),
+            embedding_provider=hash_provider,
+        ),
+        "hybrid_hash+walk": lambda p: LocalPipeline(
+            store_path=p,
+            embedding_provider=hash_provider,
+            graph_neighbors=hash_neighbors,
         ),
     }
     if "sentence-transformers" in available_providers():
+        default_provider = get_provider("default")
+        default_neighbors = _build_graph_neighbors(corpus, default_provider)
         configs["hybrid_default"] = lambda p: LocalPipeline(
             store_path=p,
-            embedding_provider=get_provider("default"),
+            embedding_provider=default_provider,
+        )
+        configs["hybrid_default+walk"] = lambda p: LocalPipeline(
+            store_path=p,
+            embedding_provider=default_provider,
+            graph_neighbors=default_neighbors,
         )
     return configs
 
 
 def _print_table(results: List[EvalResult], k: int) -> None:
-    header = f"{'config':<20} {'recall@' + str(k):<12} {'MRR':<8} {'nDCG@' + str(k):<10} n"
+    header = f"{'config':<24} {'recall@' + str(k):<12} {'MRR':<8} {'nDCG@' + str(k):<10} n"
     print(header)
     print("-" * len(header))
     for r in results:
         print(
-            f"{r.config:<20} "
+            f"{r.config:<24} "
             f"{r.recall_at_k:<12.3f} "
             f"{r.mrr:<8.3f} "
             f"{r.ndcg_at_k:<10.3f} "
@@ -161,7 +217,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     corpus, queries = _load_data(args.data)
     results: List[EvalResult] = []
-    for name, factory in _configs().items():
+    for name, factory in _configs(corpus).items():
         print(f"running {name} ...")
         results.append(_run_config(name, factory, corpus, queries, args.k))
     print()
@@ -170,8 +226,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if "sentence-transformers" not in available_providers():
         print()
         print(
-            "note: sentence-transformers not installed — `hybrid_default` "
-            "was skipped. install with:  pip install -e \"./embeddings[sentence-transformers]\""
+            "note: sentence-transformers provider unavailable — `hybrid_default` "
+            "and `hybrid_default+walk` were skipped. either it isn't installed "
+            "(`pip install -e \"./embeddings[sentence-transformers]\"`) or its "
+            "transitive deps failed to import in this env (the registry "
+            "swallows the error and degrades to hash-stub)."
         )
     return 0
 

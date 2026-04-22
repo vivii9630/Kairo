@@ -19,12 +19,20 @@ _DEFAULT_PRIORITY: List[str] = ["sentence-transformers"]
 
 
 def _register_optional_providers() -> None:
-    """Lazy-register providers whose deps come from optional extras."""
+    """Lazy-register providers whose deps come from optional extras.
+
+    A broad except is intentional: optional providers can fail to import
+    not just on missing-package (ImportError) but on broken transitive
+    deps (e.g. protobuf TypeError, accelerate/wandb chain errors). The
+    contract is "if this provider can't load cleanly, pretend it isn't
+    installed" — we'd rather degrade to hash-stub than crash registry
+    initialization for every consumer.
+    """
     try:
         from .providers.sentence_transformers import SentenceTransformersProvider
 
         _BUILTIN["sentence-transformers"] = SentenceTransformersProvider
-    except ImportError:
+    except Exception:  # noqa: BLE001 - see docstring
         pass
 
 
