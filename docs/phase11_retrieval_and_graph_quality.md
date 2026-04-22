@@ -26,14 +26,15 @@ Net effect: the graph is decorative. Retrieval quality is capped at lexical keyw
 
 ## 3. Sub-phases
 
-### 11a — BM25 + hybrid scoring in retrieval
+### 11a — BM25 + RRF hybrid in retrieval
 
-Replace raw TF with BM25 and add semantic cosine as a weighted second term.
+Replace raw TF with BM25, then fuse with a semantic cosine retriever using **Reciprocal Rank Fusion** (RRF).
 
 - Dependency: `rank_bm25` (pure-Python, ~2 KB, battle-tested).
-- `LocalPipeline.__init__` accepts an optional `EmbeddingProvider`; if set, the retriever pre-embeds all docs on ingest and computes `score = α · bm25_norm + β · cosine_norm` at query time. Defaults: `α = β = 0.5`.
+- `LocalPipeline.__init__` accepts an optional `EmbeddingProvider`; if set, the retriever pre-embeds all docs on ingest and runs two retrievers in parallel at query time (BM25 over tokens, cosine over embeddings). Each retriever returns a top-`n` ranked list; final scores are `sum_i 1 / (k + rank_i(doc))` with `k = 60` (the empirically-stable Cormack-et-al. default).
+- Why RRF, not `α · bm25 + β · cosine`: BM25 scores are unbounded and corpus-dependent; cosine is bounded. Linear-combining requires normalization whose failure modes (outlier sensitivity, distribution mismatch) outweigh the magnitude information lost by rank-only fusion. RRF also has no hyperparameters to tune per-corpus, which matters when we have no labeled eval data yet.
 - If no provider is configured, falls back to pure BM25 — the old hash-stub is not re-used as a similarity proxy (it's meaningless and misleading).
-- Normalization: min-max across the current query's candidate pool, not global.
+- **Post-11d re-tune decision:** once the eval harness shows per-retriever quality, revisit whether weighted RRF (`w_i / (k + rank_i)`) with `w_cosine ≈ 1.5 · w_bm25` would edge out plain RRF. Plain RRF is the default ship; weights are a data-driven follow-up.
 
 **Files touched:** `retrieval/src/kairo_retrieval/local.py`, `retrieval/pyproject.toml` (add `rank_bm25` to deps).
 
@@ -67,14 +68,27 @@ The smallest thing that lets us tell if 11a–c actually helped.
 
 - `retrieval/tests/eval_data.json` — 10–20 hand-labeled `{query, corpus_ids, relevant_ids}` triples.
 - `retrieval/tests/eval_retrieval.py` — computes `recall@k`, `MRR`, `nDCG@k` for a given pipeline config.
-- Print a comparison table across (TF, BM25, BM25+cosine, BM25+cosine+graph-expand).
+- Print a comparison table across (TF, BM25, BM25+cosine+RRF, BM25+cosine+RRF+graph-expand).
 - Run under `pytest` so CI catches regressions.
 
 **Files touched:** new `retrieval/tests/eval_data.json`, new `retrieval/tests/eval_retrieval.py`.
 
+### 11e — HNSW ANN index (optional follow-up)
+
+Once real embeddings ship in 11b, linear-scan cosine in 11a is `O(n)` per query. Swap for an HNSW index via `hnswlib` (~100 KB wheel, pure C++ under the hood).
+
+- Build the index lazily in `LocalPipeline` on first query after ingest.
+- Rebuild on any `ingest_documents` call — small corpora (<10k) rebuild in <1 s.
+- Query becomes `O(log n)`. Matters once corpora hit ~10k+ docs.
+- Keeps BM25 as the sparse branch; HNSW replaces the brute-force dense branch only.
+
+Deferred to after 11d so the eval harness can measure whether approximate recall hurts quality (HNSW is approximate; for tiny corpora the exact scan is fine).
+
+**Files touched:** `retrieval/src/kairo_retrieval/local.py`, `retrieval/pyproject.toml` (add `hnswlib` to optional extras).
+
 ## 4. Ship order
 
-One commit per sub-phase, in order `11a → 11b → 11c → 11d`. 11d is intentionally last so it can measure the cumulative lift.
+One commit per sub-phase, in order `11a → 11b → 11c → 11d → 11e`. 11d is intentionally before 11e so the eval harness can tell us whether the HNSW approximation is costing quality.
 
 ## 5. Expected wins (rough, from RAG literature)
 
@@ -150,4 +164,5 @@ The general principle: **retrieval quality substitutes for model size**. Every t
 
 - **BM25 implementation.** `rank_bm25` package vs hand-roll (~30 lines). Recommending the package.
 - **Eval corpus.** Synthetic 20-doc toy set for 11d, or label a real dataset? Synthetic first; swap to real when user has a concrete use case.
-- **Commit bundling.** Four separate commits vs one Phase-11 squash. Four commits matches the existing 8a–8e style.
+- **Commit bundling.** Five separate commits vs one Phase-11 squash. Five commits matches the existing 8a–8e style.
+- **Weighted RRF.** Plain RRF ships in 11a; after 11d data lands, decide whether per-retriever weights are worth the added hyperparameter.
