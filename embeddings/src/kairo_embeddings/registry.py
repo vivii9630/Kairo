@@ -11,6 +11,12 @@ _BUILTIN: Dict[str, Type] = {
     "hash-stub": HashStubProvider,
 }
 
+# Priority list used to resolve name="default" — first importable wins.
+# Kept narrow on purpose: "default" means "the best real semantic embedding
+# available locally", never the hash-stub (which carries no semantic signal
+# and is only there for CI / offline smoke tests).
+_DEFAULT_PRIORITY: List[str] = ["sentence-transformers"]
+
 
 def _register_optional_providers() -> None:
     """Lazy-register providers whose deps come from optional extras."""
@@ -25,6 +31,17 @@ def _register_optional_providers() -> None:
 _register_optional_providers()
 
 
+def _resolve_default() -> str:
+    for name in _DEFAULT_PRIORITY:
+        if name in _BUILTIN:
+            return name
+    raise ImportError(
+        "No real semantic embedding provider is installed. "
+        'Install one with: pip install -e "./embeddings[sentence-transformers]" '
+        '(or pass name="hash-stub" explicitly for CI/offline plumbing).'
+    )
+
+
 def get_provider(
     name: str,
     *,
@@ -33,13 +50,21 @@ def get_provider(
 ) -> EmbeddingProvider:
     """Resolve an embedding provider by name.
 
+    Passing ``name="default"`` returns the best real semantic provider
+    currently importable (priority: sentence-transformers). It never
+    silently falls back to the hash-stub — ask for ``"hash-stub"`` by
+    name if that's what you actually want.
+
     Examples::
 
-        get_provider("hash-stub", dim=64)
+        get_provider("default")                              # preferred
+        get_provider("hash-stub", dim=64)                    # CI/offline
         get_provider("sentence-transformers", model="all-MiniLM-L6-v2")
         get_provider("openai", model="text-embedding-3-small",
                      credentials=Credentials(api_key=os.environ["OPENAI_API_KEY"]))
     """
+    if name == "default":
+        name = _resolve_default()
     if name not in _BUILTIN:
         available = ", ".join(sorted(_BUILTIN)) or "<none>"
         raise ValueError(

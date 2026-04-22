@@ -40,11 +40,12 @@ Replace raw TF with BM25, then fuse with a semantic cosine retriever using **Rec
 
 ### 11b — Real embeddings as default
 
-Flip `get_provider("default")` resolution from `hash-stub` to `sentence-transformers` with model `all-MiniLM-L6-v2`.
+Add `get_provider("default")` resolution that prefers `sentence-transformers` / `all-MiniLM-L6-v2`.
 
 - 384-dim output, ~90 MB model, ~5 ms/sentence on CPU — the right size for a local default.
-- `hash-stub` stays in the registry as an **explicit** opt-in for CI / offline-install / deterministic tests.
-- If `sentence-transformers` isn't importable, `get_provider("default")` falls back to `hash-stub` with a one-line warning rather than raising — so `pip install kairo-core` without the `[embeddings]` extra still works.
+- `hash-stub` stays in the registry as an **explicit** opt-in for CI / offline-install / deterministic tests; it is never reachable via `"default"`.
+- If `sentence-transformers` isn't importable, `get_provider("default")` **raises** a helpful `ImportError` pointing at the install command. We intentionally do not fall back to `hash-stub` — a silent fallback would feed semantically meaningless vectors into `LocalPipeline`'s cosine branch, which is worse than failing loudly.
+- Callers who genuinely want a no-extras install can pass `"hash-stub"` by name.
 
 **Files touched:** `embeddings/src/kairo_embeddings/registry.py`.
 
