@@ -18,7 +18,7 @@ import json
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 
 @dataclass
@@ -124,3 +124,83 @@ def list_ollama_models(
             return [m["name"] for m in data.get("models", [])]
     except Exception:
         return []
+
+
+# ---------------------------------------------------------------------------
+# Streaming (Phase 13d)
+# ---------------------------------------------------------------------------
+
+
+def ollama_stream_chat(
+    messages: List[Dict[str, str]],
+    *,
+    config: Optional[OllamaConfig] = None,
+    timeout: int = 120,
+) -> Iterator[Tuple[str, str]]:
+    """Stream a chat completion from Ollama as ``(kind, content)`` tuples.
+
+    ``kind`` is one of:
+      - ``"token"`` — an incremental piece of assistant text. Emit to
+        the client as it arrives for the progressive-render UX.
+      - ``"done"`` — terminal marker with the full concatenated answer
+        as ``content``. Consumers should stop iterating after this.
+      - ``"error"`` — transport or parse failure. ``content`` is the
+        human-readable message.
+
+    Emits roughly one ``token`` event per Ollama JSON chunk; Ollama
+    tends to send a few characters per chunk so the client can render
+    at a natural cadence without additional buffering.
+    """
+    cfg = config or OllamaConfig()
+    payload: Dict[str, Any] = {
+        "model": cfg.model,
+        "messages": messages,
+        "stream": True,
+        "options": {
+            "temperature": cfg.temperature,
+            "num_predict": cfg.max_tokens,
+            **cfg.options,
+        },
+    }
+    url = f"{cfg.base_url}/api/chat"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    accumulated: List[str] = []
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8").strip()
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    # Skip malformed lines — Ollama occasionally sends
+                    # keepalives that aren't valid JSON.
+                    continue
+                piece = str(
+                    (chunk.get("message") or {}).get("content", "")
+                )
+                if piece:
+                    accumulated.append(piece)
+                    yield ("token", piece)
+                if chunk.get("done"):
+                    break
+    except urllib.error.URLError as exc:
+        yield (
+            "error",
+            f"Ollama transport error: {exc}. Is Ollama running at "
+            f"{cfg.base_url}?",
+        )
+        return
+    except Exception as exc:  # noqa: BLE001 — surface to caller
+        yield ("error", f"{type(exc).__name__}: {exc}")
+        return
+
+    yield ("done", "".join(accumulated))

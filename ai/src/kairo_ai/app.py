@@ -19,6 +19,7 @@ from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from kairo_analytics import (
     AnalyticsRunner,
@@ -40,6 +41,7 @@ from kairo_core.models import (
 )
 
 from .engine import current_model, get_engine, seed_documents
+from .streaming import parse_sse_payload, stream_rag_answer
 from .ingest import (
     GitHubFetchError,
     IngestStore,
@@ -199,6 +201,93 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             charts=charts,
             forecasts=forecasts,
             citation_report=citation_report,
+        )
+
+    @app.post("/ask/stream")
+    def ask_stream(req: AskRequest) -> StreamingResponse:
+        """Phase 13d — token-streaming variant of /ask.
+
+        Runs a lightweight retrieve → stream-synthesis path instead of
+        the full multi-agent pipeline, so we can pipe Ollama tokens
+        straight to the client as they arrive. Trade-off is intentional:
+        /ask keeps the full-quality multi-agent answer, /ask/stream
+        gives progressive-render UX. True multi-agent streaming waits
+        on an engine refactor.
+        """
+        if not req.query.strip():
+            raise HTTPException(status_code=422, detail="query must not be empty")
+
+        thread = (
+            store.get(req.thread_id)
+            if req.thread_id
+            else store.create(plugin=req.plugin)
+        )
+        if thread is None:
+            raise HTTPException(
+                status_code=404, detail=f"unknown thread: {req.thread_id}"
+            )
+
+        now = datetime.now(timezone.utc)
+        store.append_message(
+            thread.id,
+            Message(role="user", content=req.query, created_at=now),
+        )
+
+        documents = seed_documents()
+        if req.ingest_id:
+            ingest_obj = ingest_store.get(req.ingest_id)
+            if ingest_obj is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"unknown ingest_id: {req.ingest_id}",
+                )
+            documents = ingest_obj.documents
+
+        model = current_model()
+        cfg = None
+        if model:
+            from kairo_agents.providers.ollama import OllamaConfig
+            cfg = OllamaConfig(model=model)
+
+        captured_answer: List[str] = []
+
+        def event_generator():
+            for frame in stream_rag_answer(
+                query=req.query,
+                documents=documents,
+                thread_id=thread.id,
+                ollama_config=cfg,
+            ):
+                # Capture the final answer so we can record the
+                # assistant turn once the stream completes. The client
+                # has already seen the tokens — this is bookkeeping.
+                if frame.startswith("data: "):
+                    try:
+                        payload = parse_sse_payload(frame)
+                        if payload.get("type") == "done":
+                            captured_answer.append(payload.get("answer", ""))
+                    except Exception:
+                        pass
+                yield frame
+            # After the generator finishes, persist the assistant message.
+            final_answer = captured_answer[0] if captured_answer else ""
+            if final_answer:
+                store.append_message(
+                    thread.id,
+                    Message(
+                        role="assistant",
+                        content=final_answer,
+                        created_at=datetime.now(timezone.utc),
+                    ),
+                )
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",  # disable proxy buffering
+            },
         )
 
     @app.post("/ingest", response_model=IngestResponse)
