@@ -10,6 +10,7 @@ from .analytics_models import (
     ForecastSpec,
     StatSummary,
 )
+from .citation import CitationReport, ClaimVerification
 from .extraction import (
     ExtractedConcept,
     ExtractedEdge,
@@ -70,4 +71,6 @@ __all__ = [
     "ExtractedEdge",
     "ExtractionResult",
     "ExtractorName",
+    "CitationReport",
+    "ClaimVerification",
 ]

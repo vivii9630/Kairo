@@ -100,6 +100,10 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
     def get_plugins() -> List[PluginSummary]:
         return [_flatten_manifest(m) for m in list_manifests()]
 
+    # Citation verifier reused across requests — stateless, cheap.
+    from kairo_rag import CitationVerifier
+    citation_verifier = CitationVerifier()
+
     @app.post("/ask", response_model=AskResponse)
     def ask(req: AskRequest) -> AskResponse:
         if not req.query.strip():
@@ -143,6 +147,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
 
         runner = get_engine()
         cited_node_ids: List[str] = []
+        citation_report = None
         if runner is None:
             # Ollama unreachable — return the stub so the UI still works.
             answer_text, trace, graph_data, traversal_trace, stubbed = (
@@ -158,6 +163,9 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
                 graph_data = result.graph_data
                 traversal_trace = result.rag_result.trace
                 cited_node_ids = _cited_ids(result)
+                citation_report = citation_verifier.verify(
+                    answer_text, result.rag_result.evidences
+                )
                 stubbed = False
             except Exception as exc:  # noqa: BLE001 — surface engine errors in-UI
                 answer_text, trace, graph_data, traversal_trace, stubbed = (
@@ -190,6 +198,7 @@ def create_app(*, cors_origins: List[str] | None = None) -> FastAPI:
             cited_node_ids=cited_node_ids,
             charts=charts,
             forecasts=forecasts,
+            citation_report=citation_report,
         )
 
     @app.post("/ingest", response_model=IngestResponse)

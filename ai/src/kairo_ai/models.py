@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from kairo_core import ChartSpec, ForecastSpec
+from kairo_core import ChartSpec, CitationReport, ForecastSpec
 from kairo_core.models import LayeredGraphData, TraversalTrace
 
 
@@ -105,6 +105,9 @@ class AskResponse(BaseModel):
     # Forecast payloads (history + forecast + confidence band) emitted by
     # the forecast tool. UI renders these as a distinct block below charts.
     forecasts: List[ForecastSpec] = Field(default_factory=list)
+    # Citation-verification report built by CitationVerifier after
+    # generation. Null on stubbed / fallback paths that skip verification.
+    citation_report: Optional[CitationReport] = None
 
 
 class Thread(BaseModel):
