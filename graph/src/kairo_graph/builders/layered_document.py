@@ -20,6 +20,15 @@ from kairo_core import Document
 
 from ..graph import KairoGraph
 from ..layered import LayeredKairoGraph
+from ..provenance import PROVENANCE_INFERRED, PROVENANCE_STRUCTURAL, edge_attrs
+
+
+_STRUCTURAL = edge_attrs(provenance=PROVENANCE_STRUCTURAL, confidence=1.0)
+# Co-occurrence / proximity signals are weak — phrases sharing a doc,
+# sentences within N positions of each other. Keep the confidence low
+# so downstream filtering can easily exclude them.
+_COOCCUR = edge_attrs(provenance=PROVENANCE_INFERRED, confidence=0.4)
+_NEAR = edge_attrs(provenance=PROVENANCE_INFERRED, confidence=0.3)
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +109,7 @@ class DocumentLayeredBuilder:
                 **{f"meta_{k}": v for k, v in doc.metadata.items()},
             )
             if prev_doc_id is not None:
-                lg.document.add_edge(prev_doc_id, doc.id, kind="sequence")
+                lg.document.add_edge(prev_doc_id, doc.id, kind="sequence", **_STRUCTURAL)
             prev_doc_id = doc.id
 
             # ---- Layer 2: semantic phrase nodes ---------------------------
@@ -116,12 +125,13 @@ class DocumentLayeredBuilder:
                     source_layer="document",
                     target_layer="semantic",
                     kind="contains",
+                    **_STRUCTURAL,
                 )
 
             # co-occurrence edges within this document's phrases
             for i, a in enumerate(phrase_ids):
                 for b in phrase_ids[i + 1:]:
-                    lg.semantic.add_edge(a, b, kind="co_occurs")
+                    lg.semantic.add_edge(a, b, kind="co_occurs", **_COOCCUR)
 
             # ---- Layer 3: detail sentence nodes ---------------------------
             sentences = _split_sentences(doc.text)
@@ -146,18 +156,19 @@ class DocumentLayeredBuilder:
                             source_layer="semantic",
                             target_layer="detail",
                             kind="grounds",
+                            **_STRUCTURAL,
                         )
 
             # sequence edges between sentences
             for i in range(len(sent_ids) - 1):
-                lg.detail.add_edge(sent_ids[i], sent_ids[i + 1], kind="follows")
+                lg.detail.add_edge(sent_ids[i], sent_ids[i + 1], kind="follows", **_STRUCTURAL)
 
             # similarity edges (window-based proximity for now;
             # embedding-based similarity lands in Phase 7b with KNN)
             window = 3
             for i, sid_a in enumerate(sent_ids):
                 for sid_b in sent_ids[i + 2: i + 2 + window]:
-                    lg.detail.add_edge(sid_a, sid_b, kind="near")
+                    lg.detail.add_edge(sid_a, sid_b, kind="near", **_NEAR)
 
         # Cross-document semantic links: shared phrases across docs
         _add_cross_doc_semantic_edges(lg, doc_list)
@@ -181,4 +192,4 @@ def _add_cross_doc_semantic_edges(
         # star topology: first occurrence links to all others
         anchor = node_ids[0]
         for other in node_ids[1:]:
-            lg.semantic.add_edge(anchor, other, kind="shared_concept")
+            lg.semantic.add_edge(anchor, other, kind="shared_concept", **_STRUCTURAL)

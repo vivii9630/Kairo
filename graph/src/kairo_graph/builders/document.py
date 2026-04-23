@@ -7,6 +7,7 @@ import numpy as np
 from kairo_core import Document
 
 from ..graph import KairoGraph
+from ..provenance import PROVENANCE_INFERRED, edge_attrs
 from ._similarity import top_k_similar_pairs
 
 try:
@@ -68,6 +69,7 @@ class DocumentGraphBuilder:
                     target,
                     kind="similar-to",
                     weight=score,
+                    **edge_attrs(provenance=PROVENANCE_INFERRED, confidence=score),
                 )
 
         return graph

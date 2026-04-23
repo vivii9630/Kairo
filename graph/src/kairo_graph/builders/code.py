@@ -6,6 +6,10 @@ from typing import Dict, Iterable, List, Optional, Set
 from kairo_core import Document
 
 from ..graph import KairoGraph
+from ..provenance import PROVENANCE_STRUCTURAL, edge_attrs
+
+
+_STRUCTURAL = edge_attrs(provenance=PROVENANCE_STRUCTURAL, confidence=1.0)
 
 
 class CodeGraphBuilder:
@@ -62,30 +66,30 @@ def _emit_module(graph: KairoGraph, doc: Document, tree: ast.Module, module_ids:
         if isinstance(stmt, ast.FunctionDef):
             fn_id = f"{module_id}::{stmt.name}"
             graph.add_node(fn_id, kind="function", label=stmt.name)
-            graph.add_edge(module_id, fn_id, kind="contains")
+            graph.add_edge(module_id, fn_id, kind="contains", **_STRUCTURAL)
             defined_functions[stmt.name] = fn_id
 
         elif isinstance(stmt, ast.ClassDef):
             cls_id = f"{module_id}::{stmt.name}"
             graph.add_node(cls_id, kind="class", label=stmt.name)
-            graph.add_edge(module_id, cls_id, kind="contains")
+            graph.add_edge(module_id, cls_id, kind="contains", **_STRUCTURAL)
             for inner in stmt.body:
                 if isinstance(inner, ast.FunctionDef):
                     method_id = f"{cls_id}.{inner.name}"
                     graph.add_node(method_id, kind="function", label=inner.name)
-                    graph.add_edge(cls_id, method_id, kind="contains")
+                    graph.add_edge(cls_id, method_id, kind="contains", **_STRUCTURAL)
                     defined_functions[f"{stmt.name}.{inner.name}"] = method_id
                     defined_functions.setdefault(inner.name, method_id)
 
         elif isinstance(stmt, (ast.Import, ast.ImportFrom)):
             for target in _import_targets(stmt):
                 if target in module_ids:
-                    graph.add_edge(module_id, target, kind="imports")
+                    graph.add_edge(module_id, target, kind="imports", **_STRUCTURAL)
                 else:
                     ext_id = f"ext::{target}"
                     if ext_id not in graph.nx_graph:
                         graph.add_node(ext_id, kind="external_module", label=target)
-                    graph.add_edge(module_id, ext_id, kind="imports")
+                    graph.add_edge(module_id, ext_id, kind="imports", **_STRUCTURAL)
 
     # Second pass: resolve intra-module call edges.
     for stmt in tree.body:
@@ -94,7 +98,7 @@ def _emit_module(graph: KairoGraph, doc: Document, tree: ast.Module, module_ids:
             for callee in _call_names(stmt):
                 target_id = defined_functions.get(callee)
                 if target_id is not None and target_id != caller_id:
-                    graph.add_edge(caller_id, target_id, kind="calls")
+                    graph.add_edge(caller_id, target_id, kind="calls", **_STRUCTURAL)
         elif isinstance(stmt, ast.ClassDef):
             for inner in stmt.body:
                 if isinstance(inner, ast.FunctionDef):
@@ -102,7 +106,7 @@ def _emit_module(graph: KairoGraph, doc: Document, tree: ast.Module, module_ids:
                     for callee in _call_names(inner):
                         target_id = defined_functions.get(callee)
                         if target_id is not None and target_id != caller_id:
-                            graph.add_edge(caller_id, target_id, kind="calls")
+                            graph.add_edge(caller_id, target_id, kind="calls", **_STRUCTURAL)
 
 
 def _import_targets(stmt: ast.AST) -> List[str]:

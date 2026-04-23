@@ -8,6 +8,10 @@ from typing import Dict, Iterable, List, Set
 from kairo_core import Document
 
 from ..graph import KairoGraph
+from ..provenance import PROVENANCE_STRUCTURAL, edge_attrs
+
+
+_STRUCTURAL = edge_attrs(provenance=PROVENANCE_STRUCTURAL, confidence=1.0)
 
 
 class TabularGraphBuilder:
@@ -60,7 +64,7 @@ class TabularGraphBuilder:
             for col in sorted(columns):
                 col_id = f"{table_id}::col::{col}"
                 graph.add_node(col_id, kind="column", label=col)
-                graph.add_edge(table_id, col_id, kind="has_column")
+                graph.add_edge(table_id, col_id, kind="has_column", **_STRUCTURAL)
 
             for doc in docs:
                 row = row_payloads[doc.id]
@@ -71,7 +75,7 @@ class TabularGraphBuilder:
                     label=doc.id,
                     **cell_attrs,
                 )
-                graph.add_edge(table_id, doc.id, kind="has_row")
+                graph.add_edge(table_id, doc.id, kind="has_row", **_STRUCTURAL)
 
         return graph
 
