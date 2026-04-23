@@ -3,6 +3,8 @@
 from .builder import GraphBuilder, LayeredGraphBuilder
 from .builders.document import DocumentGraphBuilder
 from .builders.layered_document import DocumentLayeredBuilder
+from .builders.llm_extracted import LLMExtractedGraphBuilder
+from .extractors import ExtractorProvider, OllamaExtractor
 from .communities import (
     add_concept_nodes,
     detect_communities,
@@ -28,6 +30,9 @@ __all__ = [
     "LayeredKairoGraph",
     "DocumentGraphBuilder",
     "DocumentLayeredBuilder",
+    "LLMExtractedGraphBuilder",
+    "ExtractorProvider",
+    "OllamaExtractor",
     "detect_communities",
     "add_concept_nodes",
     "summarize_community",

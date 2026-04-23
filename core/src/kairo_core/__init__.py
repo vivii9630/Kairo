@@ -10,6 +10,12 @@ from .analytics_models import (
     ForecastSpec,
     StatSummary,
 )
+from .extraction import (
+    ExtractedConcept,
+    ExtractedEdge,
+    ExtractionResult,
+    ExtractorName,
+)
 from .models import (
     AgentStep,
     BranchRef,
@@ -60,4 +66,8 @@ __all__ = [
     "ChartSpec",
     "ForecastSpec",
     "StatSummary",
+    "ExtractedConcept",
+    "ExtractedEdge",
+    "ExtractionResult",
+    "ExtractorName",
 ]
