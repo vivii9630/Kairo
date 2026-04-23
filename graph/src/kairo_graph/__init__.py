@@ -3,7 +3,12 @@
 from .builder import GraphBuilder, LayeredGraphBuilder
 from .builders.document import DocumentGraphBuilder
 from .builders.layered_document import DocumentLayeredBuilder
-from .communities import detect_communities, leiden_available
+from .communities import (
+    add_concept_nodes,
+    detect_communities,
+    leiden_available,
+    summarize_community,
+)
 from .graph import KairoGraph
 from .layered import LayeredKairoGraph
 from .provenance import (
@@ -24,6 +29,8 @@ __all__ = [
     "DocumentGraphBuilder",
     "DocumentLayeredBuilder",
     "detect_communities",
+    "add_concept_nodes",
+    "summarize_community",
     "leiden_available",
     "edge_attrs",
     "PROVENANCE_STRUCTURAL",

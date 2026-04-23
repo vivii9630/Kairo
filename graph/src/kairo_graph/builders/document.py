@@ -6,6 +6,7 @@ import numpy as np
 
 from kairo_core import Document
 
+from ..communities import add_concept_nodes, detect_communities
 from ..graph import KairoGraph
 from ..provenance import PROVENANCE_INFERRED, edge_attrs
 from ._similarity import top_k_similar_pairs
@@ -34,10 +35,16 @@ class DocumentGraphBuilder:
         embedding_provider: Optional["EmbeddingProvider"] = None,
         similarity_k: int = 5,
         similarity_threshold: float = 0.3,
+        detect_communities: bool = False,
+        community_resolution: float = 1.0,
+        community_min_size: int = 2,
     ) -> None:
         self.embedding_provider = embedding_provider
         self.similarity_k = similarity_k
         self.similarity_threshold = similarity_threshold
+        self.detect_communities = detect_communities
+        self.community_resolution = community_resolution
+        self.community_min_size = community_min_size
 
     def build(self, documents: Iterable[Document]) -> KairoGraph:
         graph = KairoGraph()
@@ -71,5 +78,14 @@ class DocumentGraphBuilder:
                     weight=score,
                     **edge_attrs(provenance=PROVENANCE_INFERRED, confidence=score),
                 )
+
+            if self.detect_communities:
+                communities = detect_communities(
+                    graph,
+                    resolution=self.community_resolution,
+                    min_community_size=self.community_min_size,
+                )
+                if communities:
+                    add_concept_nodes(graph, communities)
 
         return graph

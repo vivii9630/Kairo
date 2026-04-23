@@ -14,7 +14,8 @@ shouldn't require touching callers.
 
 from __future__ import annotations
 
-from typing import List
+import re
+from typing import Callable, Dict, List, Sequence, Set
 
 try:
     import networkx as nx
@@ -24,6 +25,19 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 from .graph import KairoGraph
+from .provenance import PROVENANCE_INFERRED, edge_attrs
+
+
+_WORD_RE = re.compile(r"[a-zA-Z][a-zA-Z\-]{2,}")
+_DEFAULT_STOPWORDS: Set[str] = {
+    "the", "and", "for", "are", "but", "not", "you", "all", "can",
+    "was", "one", "our", "out", "has", "have", "had", "its", "from",
+    "this", "that", "with", "been", "their", "they", "them", "were",
+    "into", "than", "then", "what", "when", "your", "about", "would",
+    "there", "could", "other", "after", "first", "where", "these",
+    "those", "such", "some", "more", "most", "very", "just", "also",
+    "only", "over", "under", "which", "while", "who", "whom", "why",
+}
 
 
 def _build_subgraph(graph: KairoGraph, edge_kind: str) -> "nx.Graph":
@@ -114,3 +128,92 @@ def detect_communities(
     sized = [sorted(c) for c in raw if len(c) >= min_community_size]
     sized.sort(key=lambda c: (-len(c), c[0]))
     return sized
+
+
+# ---------------------------------------------------------------------------
+# Concept summarization (default = lightweight, no LLM)
+# ---------------------------------------------------------------------------
+
+def summarize_community(
+    graph: KairoGraph,
+    member_ids: Sequence[str],
+    *,
+    top_k_terms: int = 8,
+    text_attr_candidates: Sequence[str] = ("text_preview", "full_text", "label"),
+    stopwords: Set[str] = _DEFAULT_STOPWORDS,
+) -> str:
+    """Build a lightweight summary as the top-k most frequent tokens.
+
+    Pulls text from the first matching attribute on each member node
+    (defaults align with DocumentGraphBuilder's ``text_preview`` and
+    DocumentLayeredBuilder's ``full_text``). Stopwords and short tokens
+    are skipped; result is space-joined.
+
+    Designed to be swapped: :func:`add_concept_nodes` accepts a
+    ``summary_fn`` with the same signature, so a caller can plug in an
+    Ollama-backed summarizer later without touching this module.
+    """
+    nx_g = graph.nx_graph
+    counts: Dict[str, int] = {}
+    for nid in member_ids:
+        if nid not in nx_g:
+            continue
+        data = nx_g.nodes[nid]
+        text = ""
+        for attr in text_attr_candidates:
+            val = data.get(attr)
+            if val:
+                text = str(val)
+                break
+        for tok in _WORD_RE.findall(text.lower()):
+            if tok in stopwords or len(tok) <= 2:
+                continue
+            counts[tok] = counts.get(tok, 0) + 1
+
+    if not counts:
+        return ""
+    top = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:top_k_terms]
+    return " ".join(t for t, _ in top)
+
+
+SummaryFn = Callable[[KairoGraph, Sequence[str]], str]
+
+
+# ---------------------------------------------------------------------------
+# Concept-node insertion
+# ---------------------------------------------------------------------------
+
+def add_concept_nodes(
+    graph: KairoGraph,
+    communities: List[List[str]],
+    *,
+    summary_fn: SummaryFn = summarize_community,
+    concept_prefix: str = "concept:",
+) -> List[str]:
+    """Mutate *graph* to add one concept node per community.
+
+    For each community, creates a node ``{concept_prefix}{i}`` with
+    ``kind="concept"``, ``label`` = first 80 chars of the summary, and
+    attrs ``summary`` (full summary string) + ``size`` (member count).
+    Adds a ``belongs_to`` edge from every member → the concept, tagged
+    inferred since the cluster itself was derived by community
+    detection (not present in the source material).
+
+    Returns the created concept node ids in community order.
+    """
+    belongs_to = edge_attrs(provenance=PROVENANCE_INFERRED, confidence=1.0)
+    concept_ids: List[str] = []
+    for idx, members in enumerate(communities):
+        cid = f"{concept_prefix}{idx}"
+        summary = summary_fn(graph, members)
+        graph.add_node(
+            cid,
+            kind="concept",
+            label=(summary[:80] if summary else cid),
+            summary=summary,
+            size=len(members),
+        )
+        for member in members:
+            graph.add_edge(member, cid, kind="belongs_to", **belongs_to)
+        concept_ids.append(cid)
+    return concept_ids
