@@ -69,17 +69,17 @@ Kairo is organized as a **layered stack of independent packages**. Each layer de
 |---|---|---|---|
 | [`kairo-core`](core/) | Shared types (`Document`, `Message`, `Evidence`, `QueryRequest`, `Snapshot`, `HistoryNode`, `GraphDiff`, `TemporalQuery`, …) | — | ✅ shipped |
 | [`kairo-ingest`](ingest/) | Multi-format loaders (txt, jsonl, csv, xlsx, pdf, docx, audio) | core | ✅ shipped |
-| [`kairo-retrieval`](retrieval/) | Local lexical pipeline + hosted HTTP client; vector/graph/hybrid land here | core | ✅ shipped |
+| [`kairo-retrieval`](retrieval/) | Local lexical pipeline + hosted HTTP client. **BM25 + cosine** fused via Reciprocal Rank Fusion (Phase 11a), **1-hop graph walk** with weight-decayed neighbor boost (Phase 13a), eval harness with recall@k / MRR / nDCG@k | core, embeddings | ✅ shipped |
 | [`kairo-connectors`](connectors/) | Adapters for external sources via the `ConnectorPlugin` protocol. Ships GitHub, Slack, Google Drive, Gmail; pluggable auth layer (Bearer / OAuth2 / API key) + env + file credential stores | core | ✅ shipped (Phases 4 + 6a/6b/6c) |
-| [`kairo-graph`](graph/) | `GraphBuilder` protocol, NetworkX-backed `KairoGraph` with deterministic SHA-256 hashing and JSON round-trip, per-content-type builders | core | ✅ shipped (Phase 1) |
+| [`kairo-graph`](graph/) | `GraphBuilder` protocol, NetworkX-backed `KairoGraph` with deterministic SHA-256 hashing and JSON round-trip, per-content-type builders. Every edge carries **`provenance`** (structural / extracted / inferred / ambiguous) + **`confidence`** (Phase 13b1). **Leiden community detection** with Louvain fallback, concept-node builder (13b2). Pluggable **`ExtractorProvider`** protocol + `OllamaExtractor` + `LLMExtractedGraphBuilder` for LLM-extracted relationships (13b3). `CodeGraphBuilder` emits **docstring** and **rationale-comment** nodes (13b4) | core, embeddings | ✅ shipped |
 | [`kairo-embeddings`](embeddings/) | Pluggable `EmbeddingProvider` registry (hash-stub, sentence-transformers, OpenAI, Cohere, Voyage, Bedrock), `EmbeddingStore` with cosine top-k | core | ✅ shipped (Phase 2) |
 | [`kairo-temporal`](temporal/) | `HistoryGraph` (branching DAG of snapshots), rollback, walk, diff — owns the `.kairo/` filesystem layout | core, graph, embeddings | ✅ shipped (Phase 3) |
-| [`kairo-rag`](rag/) | RAG patterns: plain, hybrid, **temporal** (`TemporalRAG` orchestrator lands here in Phase 7) | core, agents, retrieval | ✅ shipped |
+| [`kairo-rag`](rag/) | RAG patterns: plain, hybrid, **temporal** `TemporalRAG` orchestrator (Phase 7). Post-generation **`CitationVerifier`** checks every claim against cited evidences and flags `answer_downgraded` when support drops below threshold (Phase 13c) | core, agents, retrieval | ✅ shipped |
 | [`kairo-flow`](flow/) | Directed-graph runner for agent/tool steps (cycles supported) | core, retrieval | ✅ shipped |
 | [`kairo-agents`](agents/) | Agents, inter-agent messaging, subagent delegation, verbose reasoning; supervisor multi-agent + Kairo-native tool-use lands in Phase 8 | core | ✅ shipped |
 | [`kairo-cli`](cli/) | `kairo` command: ingest, query, and upcoming temporal commands (`init`, `snapshot`, `ask`, `log`, `rollback`, `branch`) | core, ingest, retrieval | ✅ shipped |
 | [`kairo-edge`](edge/) | ARM / mobile build — pure-Python, zero heavy deps | core | ✅ shipped |
-| [`kairo-ai`](ai/) | Backend orchestration for the **Kairo AI** product: FastAPI shell exposing `/plugins`, `/ask`, `/threads`. Stubbed answer path today; gets the Phase 7 `TemporalRAG` orchestrator behind it next | core, connectors | ✅ shipped (Phase 9, stub) |
+| [`kairo-ai`](ai/) | Backend orchestration for the **Kairo AI** product: FastAPI shell exposing `/plugins`, `/ask`, `/ingest`, `/threads`. Full multi-agent `EngineRunner` behind `/ask` (Phase 7e). **`/ask/stream`** SSE route pipes Ollama tokens through as they arrive (Phase 13d) | core, connectors, rag, retrieval, agents | ✅ shipped |
 | [`kairo-ui`](ui/) | Chat-native frontend: logo-first landing, plugin picker wired to the live manifest registry, trace panel, thread list. Next.js (App Router) + Tailwind + TypeScript, talks to `kairo-ai` over HTTP | kairo-ai | ✅ shipped (Phase 10, thin slice) |
 | `kairo-auth` | Credential broker for embedding / LLM / connector providers; other packages pull keys from here | core | 🔒 reserved (future) |
 
@@ -127,12 +127,98 @@ project-root/
 | 4 | `ConnectorPlugin` protocol + GitHub URL connector (shallow clone → hand off to ingest) | `kairo-connectors` | ✅ shipped |
 | 5 | Per-type graph builders (code AST, tabular rows/cols/FKs) | `kairo-graph` | ✅ shipped |
 | 6 | Protocol evolution + auth layer + Slack / Google Drive / Gmail (Jira deferred) | `kairo-connectors` | ✅ shipped (6a/6b/6c) |
-| 7 | `TemporalRAG` orchestrator (composes temporal + embeddings + graph) | `kairo-rag` | ⏳ next |
-| 8 | Supervisor multi-agent + **Kairo-native dict-based tool-use protocol** | `kairo-agents`, `kairo-flow` | ⏳ planned |
-| 9 | FastAPI shell: `/plugins`, `/ask` (stubbed), `/threads` | `kairo-ai` | ✅ shipped (stub) |
-| 10 | Chat-native UI: plugin picker, ask box, trace panel, thread list | `kairo-ui` | ✅ shipped (thin slice) |
+| 7 | `TemporalRAG` orchestrator, multi-agent supervisor, Ollama engine, GitHub/CSV ingest, web enrichment, grounding halos | `kairo-rag`, `kairo-agents`, `kairo-ai`, `kairo-ui` | ✅ shipped (7a–7h) |
+| 8 | In-chat analytics: charts (bar/line/histogram/scatter/pairwise), forecasting (exp-smoothing), kmeans + linear regression | `kairo-analytics` | ✅ shipped (8a–8e) |
+| 9 | FastAPI shell: `/plugins`, `/ask`, `/ingest`, `/threads` | `kairo-ai` | ✅ shipped |
+| 10 | Chat-native UI: plugin picker, ask box, 3D graph viz, trace panel, thread list | `kairo-ui` | ✅ shipped |
+| 11 | **Retrieval & graph quality** — BM25 + cosine via RRF, `sentence-transformers` as real-semantic default, weighted `similar-to` edges from `DocumentGraphBuilder`, recall@k / MRR / nDCG@k eval harness | `kairo-retrieval`, `kairo-embeddings`, `kairo-graph` | ✅ shipped (11a–11d) |
+| 12 | **STDP plasticity** — event pipeline + reward-modulated edge updates + goal conditioning + staleness decay. Implicit behavioral signals (regenerate / copy / follow-up), never thumbs-up/down alone | `kairo-plasticity` (planned), `kairo-ai` | ⏳ planned |
+| 13 | **Graph intelligence & answer trust** — 1-hop graph walk in retrieval, Leiden communities, edge `provenance` + `confidence` tags on every builder, concept nodes, pluggable `ExtractorProvider` + `OllamaExtractor` + `LLMExtractedGraphBuilder`, docstring + rationale-comment nodes in `CodeGraphBuilder`, `CitationVerifier` over generated answers, SSE `/ask/stream` | `kairo-retrieval`, `kairo-graph`, `kairo-rag`, `kairo-ai`, `kairo-agents` | ✅ shipped (13a, 13b1–4, 13c, 13d) |
 
 Each phase lands as a package-scoped commit so phases can be released, revisited, or contributed to independently.
+
+---
+
+## Graph intelligence & answer trust *(Phase 13)*
+
+Phase 13 turned the graph from decorative into operational and added first-class answer-trust signals.
+
+### Edge provenance & confidence
+
+Every edge produced by any builder now carries two attributes beyond `kind`:
+
+- `provenance ∈ {structural, extracted, inferred, ambiguous}` — how the edge was produced.
+- `confidence ∈ [0.0, 1.0]` — how certain the builder is the edge is real.
+
+| Edge source | Provenance | Confidence |
+|---|---|---|
+| AST (imports, calls, contains) | `structural` | `1.0` |
+| Docstring / rationale-comment nodes | `structural` | `1.0` |
+| Tabular schema (has_column, has_row) | `structural` | `1.0` |
+| Cosine `similar-to` between docs | `inferred` | cosine score |
+| Leiden `belongs_to` (doc → concept) | `inferred` | `1.0` (cluster-derived) |
+| LLM-extracted relationships | `extracted` / `ambiguous` | extractor-reported |
+
+Retrieval, the graph walk, and future plasticity updates can filter or weight by these attrs. The `edge_attrs()` helper in `kairo_graph.provenance` is the single choke point — invalid provenance or out-of-range confidence raises, so bad values can't leak past a builder.
+
+### Leiden community detection + concept nodes
+
+`detect_communities()` groups nodes over the weighted `similar-to` subgraph using **Leiden** via `leidenalg` + `python-igraph` (Louvain fallback when the extra isn't installed). `add_concept_nodes()` inserts one `concept` node per community with a lightweight token-frequency summary; each member doc gains a `belongs_to` edge. The summarizer is pluggable — pass a `summary_fn=(graph, member_ids) -> str` to swap in an Ollama-backed or Claude-backed summary without touching the builder.
+
+Install the extra:
+
+```bash
+pip install -e "./graph[leiden]"
+```
+
+### Pluggable relationship extraction
+
+The `ExtractorProvider` protocol lets any backend plug in:
+
+```python
+from kairo_graph import LLMExtractedGraphBuilder, OllamaExtractor
+
+extractor = OllamaExtractor(model="llama3.2")
+builder = LLMExtractedGraphBuilder(extractor, collision_policy="skip")
+results = builder.augment(graph, documents)
+```
+
+`OllamaExtractor` is the local-first default. Cloud backends (Claude via Anthropic SDK, OpenAI, Cohere) slot in as `ExtractorProvider` subclasses without builder changes. Extracted edges are tagged `provenance="extracted"` with the model's self-reported confidence; `collision_policy="skip"` (default) guards against clobbering existing structural edges in the DiGraph.
+
+### Citation verification
+
+`CitationVerifier` in `kairo-rag` checks every sentence of a generated answer against the cited evidences via asymmetric token overlap. Returns a `CitationReport`:
+
+```python
+from kairo_rag import CitationVerifier
+
+report = CitationVerifier(claim_threshold=0.35).verify(answer, evidences)
+print(report.overall_support)          # 0.0–1.0
+print(report.answer_downgraded)        # True when support < 0.6
+for claim in report.claims:
+    print(claim.supported, claim.sentence)
+```
+
+Wired into the `/ask` response as `citation_report`. Trivial / connective sentences ("Here is the summary:") auto-pass so they don't skew the support score. Embedding-similarity and LLM-judge strategies can slot in behind the same report contract later.
+
+### SSE token streaming
+
+`POST /ask/stream` returns a `text/event-stream`. Four event types:
+
+- `retrieve` — one frame with the plan + evidence count + `cited_node_ids`.
+- `token` — one frame per Ollama chunk (usually a few chars each).
+- `error` — transport / parse failure; followed by a terminal `done`.
+- `done` — reassembled answer + `CitationReport` over what was streamed.
+
+The route uses a lightweight retrieve → stream-synthesize path; the full multi-agent pipeline stays on `/ask`. True multi-agent streaming lands when the synthesizer is isolated as the only streamable step.
+
+### Retrieval eval harness
+
+```bash
+python scripts/eval_retrieval.py
+```
+
+Reports recall@k / MRR / nDCG@k across `bm25_only`, `hybrid_hash`, `hybrid_hash+walk`, `hybrid_default`, and `hybrid_default+walk` configs against a small labeled query set at `scripts/eval_data.json`.
 
 ---
 
