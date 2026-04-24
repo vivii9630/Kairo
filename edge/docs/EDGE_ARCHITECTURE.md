@@ -1,6 +1,6 @@
 # Kairo Edge Architecture (KEA)
 
-**Status:** planning · **Owner:** kairo-edge package · **Last updated:** 2026-04-23
+**Status:** in progress (14e.0 shipped) · **Owner:** kairo-edge package · **Last updated:** 2026-04-23
 
 This document is the production plan for running Kairo on edge devices —
 phones, Raspberry Pis, Chromebooks, browsers, and in-process embedded
@@ -183,6 +183,25 @@ RSS on `pi-4` fails CI until it's optimized or the budget is renegotiated.
 
 Each sub-phase is one package-scoped commit, matching the existing
 Kairo cadence (11a-d, 13a-d style).
+
+### ✅ Phase 14e.0 — Rust workspace + `kairo-edge-core` v0.1 (shipped 2026-04-23, commit `6cee66a`)
+
+Architectural pivot: **Rust is the canonical edge runtime.** Python's
+`kairo_edge` package stays working; it becomes a deprecation target
+once the PyO3 bindings crate lands.
+
+- `edge/rust/` Cargo workspace, release profile tuned for size
+  (`opt-level=z`, `lto=true`, `strip=symbols`). Release `.rlib` is
+  580 KB.
+- `kairo-edge-core` ships: `Document` / `Evidence` / `QueryRequest` /
+  `QueryResponse` types, pure-Rust Okapi BM25 (k1=1.2, b=0.75,
+  zero-filter discipline matches Phase 13a's Python fix), JSON-backed
+  `EdgeStore` with in-memory mode for no-FS runtimes.
+- Wire-format parity: a Pydantic-shaped JSON from the Python side
+  deserializes cleanly into the Rust types (test proves it). Stores
+  written by either runtime are readable by the other.
+- Tests: 7 green (2 unit + 5 integration). Covered BM25 semantics,
+  store round-trip, metadata preservation, Python-JSON interop.
 
 ### Phase 14e.1 — Spec + validator (doc-first)
 - Write `edge/docs/KAIRO_PROTOCOL.md` — JSON schemas for graph,
