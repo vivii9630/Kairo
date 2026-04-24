@@ -1,0 +1,19 @@
+[package]
+name = "kairo-edge-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Kairo edge runtime core — BM25 retrieval + JSON-backed document store, zero-runtime-dep beyond serde."
+readme = "../README.md"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"

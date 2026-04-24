@@ -1,0 +1,31 @@
+# Kairo edge — Rust workspace.
+#
+# Root of the Rust implementation of Kairo's edge runtime. Per the plan
+# in ``edge/docs/EDGE_ARCHITECTURE.md``, this becomes the canonical
+# edge core (language-shell-first architecture); Python edge becomes a
+# thin PyO3 binding over these crates once parity lands.
+#
+# Kept as a workspace from day one so the next crates (PyO3 bindings,
+# WASM target, CLI) slot in without restructuring.
+
+[workspace]
+resolver = "2"
+members = ["kairo-edge-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+repository = "https://github.com/vivii9630/Kairo"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+# Small binaries matter more than a few % of speed for edge targets.
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = "symbols"
