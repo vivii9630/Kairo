@@ -40,3 +40,4 @@ def list_scenarios() -> list:
 
 # Import scenario modules so their @register side-effects run.
 from . import smoke  # noqa: E402, F401
+from . import rust_smoke  # noqa: E402, F401

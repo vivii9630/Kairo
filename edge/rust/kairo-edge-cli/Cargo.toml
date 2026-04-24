@@ -1,0 +1,20 @@
+[package]
+name = "kairo-edge-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Thin CLI around kairo-edge-core. Reads a JSON command from stdin, runs it, emits a JSON result to stdout. Invoked by the Python emulator so both runtimes run through the same harness."
+
+[[bin]]
+name = "kairo-edge-cli"
+path = "src/main.rs"
+
+[dependencies]
+kairo-edge-core = { path = "../kairo-edge-core" }
+serde.workspace = true
+serde_json.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
