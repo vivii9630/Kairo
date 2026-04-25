@@ -23,6 +23,7 @@
 
 pub mod bm25;
 pub mod capability;
+pub mod pipeline;
 pub mod providers;
 pub mod store;
 pub mod tokenize;
@@ -32,6 +33,7 @@ pub use bm25::{Bm25Index, BM25_B, BM25_K1};
 pub use capability::{
     select_capability, DeviceProfile, ProviderCapability, ProviderKind,
 };
+pub use pipeline::{EdgePipeline, PipelineResponse};
 pub use providers::{ExtractiveProvider, InferenceProvider, ProviderError};
 pub use store::EdgeStore;
 pub use types::{Document, Evidence, Metadata, QueryRequest, QueryResponse};

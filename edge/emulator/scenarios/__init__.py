@@ -42,3 +42,4 @@ def list_scenarios() -> list:
 from . import smoke  # noqa: E402, F401
 from . import rust_smoke  # noqa: E402, F401
 from . import rust_inproc_smoke  # noqa: E402, F401
+from . import edge_pipeline_smoke  # noqa: E402, F401

@@ -15,8 +15,10 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 
 use kairo_edge_core::{
-    self as core, Document as CoreDocument, EdgeStore as CoreStore, Evidence as CoreEvidence,
-    QueryRequest as CoreRequest, QueryResponse as CoreResponse,
+    self as core, DeviceProfile as CoreProfile, Document as CoreDocument,
+    EdgePipeline as CorePipeline, EdgeStore as CoreStore, Evidence as CoreEvidence,
+    PipelineResponse as CorePipelineResponse, QueryRequest as CoreRequest,
+    QueryResponse as CoreResponse,
 };
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
@@ -238,6 +240,124 @@ impl EdgeStore {
 }
 
 // ---------------------------------------------------------------------------
+// PipelineResponse — answer + evidences + provider + cited ids
+// ---------------------------------------------------------------------------
+
+#[pyclass(module = "kairo_edge_py")]
+#[derive(Clone)]
+pub struct PipelineResponse {
+    inner: CorePipelineResponse,
+}
+
+#[pymethods]
+impl PipelineResponse {
+    #[getter]
+    fn answer(&self) -> &str {
+        &self.inner.answer
+    }
+
+    #[getter]
+    fn provider(&self) -> &str {
+        &self.inner.provider
+    }
+
+    #[getter]
+    fn cited_node_ids(&self) -> Vec<String> {
+        self.inner.cited_node_ids.clone()
+    }
+
+    #[getter]
+    fn evidences(&self) -> Vec<Evidence> {
+        self.inner
+            .evidences
+            .iter()
+            .cloned()
+            .map(|e| Evidence { inner: e })
+            .collect()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PipelineResponse(provider={:?}, cited={}, answer_len={})",
+            self.inner.provider,
+            self.inner.cited_node_ids.len(),
+            self.inner.answer.len()
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EdgePipeline — store + profile + provider list
+// ---------------------------------------------------------------------------
+
+fn profile_from_name(name: &str) -> PyResult<CoreProfile> {
+    match name {
+        "pi-zero" | "pi_zero" => Ok(CoreProfile::pi_zero()),
+        "pi-4" | "pi_4" => Ok(CoreProfile::pi_4()),
+        "pi-5" | "pi_5" => Ok(CoreProfile::pi_5()),
+        "phone-mid" | "phone_mid" => Ok(CoreProfile::phone_mid()),
+        "browser-lite" | "browser_lite" => Ok(CoreProfile::browser_lite()),
+        "browser-gpu" | "browser_gpu" => Ok(CoreProfile::browser_gpu()),
+        other => Err(PyValueError::new_err(format!(
+            "Unknown profile: {other:?}. \
+             Known: pi-zero, pi-4, pi-5, phone-mid, browser-lite, browser-gpu"
+        ))),
+    }
+}
+
+#[pyclass(module = "kairo_edge_py")]
+pub struct EdgePipeline {
+    inner: RefCell<CorePipeline>,
+}
+
+#[pymethods]
+impl EdgePipeline {
+    /// In-memory pipeline configured for *profile_name*. The
+    /// extractive provider is the only one wired today; LlamaCpp
+    /// lands in Phase 14e.4. Pass profile names from the canonical
+    /// set: pi-zero, pi-4, pi-5, phone-mid, browser-lite, browser-gpu.
+    #[staticmethod]
+    fn with_profile(profile_name: &str) -> PyResult<Self> {
+        let profile = profile_from_name(profile_name)?;
+        Ok(Self {
+            inner: RefCell::new(CorePipeline::in_memory(profile)),
+        })
+    }
+
+    fn add_documents(&self, docs: Vec<Document>) -> PyResult<()> {
+        self.inner
+            .borrow_mut()
+            .add_documents(docs.into_iter().map(|d| d.inner))
+            .map_err(|e| PyIOError::new_err(e.to_string()))
+    }
+
+    #[pyo3(signature = (query, top_k = 5))]
+    fn query(&self, query: &str, top_k: usize) -> PipelineResponse {
+        let request = CoreRequest {
+            query: query.to_string(),
+            top_k,
+            filters: core::Metadata::new(),
+        };
+        let resp = self.inner.borrow().query(&request);
+        PipelineResponse { inner: resp }
+    }
+
+    #[getter]
+    fn profile_name(&self) -> String {
+        self.inner.borrow().profile().name.clone()
+    }
+
+    #[getter]
+    fn provider_names(&self) -> Vec<String> {
+        self.inner.borrow().provider_names()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("EdgePipeline(profile={:?})", self.inner.borrow().profile().name)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Module entry point
 // ---------------------------------------------------------------------------
 
@@ -247,6 +367,8 @@ fn kairo_edge_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Evidence>()?;
     m.add_class::<QueryResponse>()?;
     m.add_class::<EdgeStore>()?;
+    m.add_class::<PipelineResponse>()?;
+    m.add_class::<EdgePipeline>()?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
