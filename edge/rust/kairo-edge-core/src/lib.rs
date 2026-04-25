@@ -28,4 +28,4 @@ pub mod types;
 
 pub use bm25::{Bm25Index, BM25_B, BM25_K1};
 pub use store::EdgeStore;
-pub use types::{Document, Evidence, QueryRequest, QueryResponse};
+pub use types::{Document, Evidence, Metadata, QueryRequest, QueryResponse};

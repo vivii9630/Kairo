@@ -1,0 +1,24 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "kairo-edge-py"
+description = "PyO3 bindings for kairo-edge-core — Rust-backed EdgeStore exposed to Python."
+requires-python = ">=3.9"
+license = { text = "MIT" }
+# Version must stay in sync with Cargo.toml version.workspace.
+version = "0.1.0"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+# abi3 wheel so one build serves all Python >= 3.9.
+features = ["pyo3/extension-module"]
+# Ship the native extension at the top level as `kairo_edge_py` —
+# matches the `[lib].name` in Cargo.toml so `import kairo_edge_py`
+# finds it directly without a Python wrapper package.
+module-name = "kairo_edge_py"

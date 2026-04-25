@@ -10,7 +10,7 @@
 
 [workspace]
 resolver = "2"
-members = ["kairo-edge-core", "kairo-edge-cli"]
+members = ["kairo-edge-core", "kairo-edge-cli", "kairo-edge-py"]
 
 [workspace.package]
 version = "0.1.0"

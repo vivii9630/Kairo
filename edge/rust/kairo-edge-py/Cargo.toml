@@ -1,0 +1,25 @@
+[package]
+name = "kairo-edge-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PyO3 bindings that expose kairo-edge-core to Python. Ships as a wheel named `kairo_edge_py` via maturin; Python's kairo_edge package imports it to retire the pure-Python EdgeStore once parity is reached."
+
+# cdylib is what maturin packages into the Python wheel; rlib lets us
+# still unit-test the Rust side with `cargo test`.
+[lib]
+name = "kairo_edge_py"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+kairo-edge-core = { path = "../kairo-edge-core" }
+serde_json.workspace = true
+
+[dependencies.pyo3]
+version = "0.22"
+features = ["extension-module", "abi3-py39"]
+
+[lints.rust]
+unsafe_code = "forbid"
