@@ -12,6 +12,13 @@ Navigation for everything that lives under `edge/`. The code lives at
   / browser-lite / browser-gpu), four-layer architecture, sub-phases
   14e.0 through 14e.8, performance contracts, test strategy, open
   questions. Start here.
+- **[`KAIRO_PROTOCOL.md`](./KAIRO_PROTOCOL.md)** — v0.1 wire-format
+  spec for `Document` / `Evidence` / `QueryRequest` / `QueryResponse`
+  and the `.kairo_edge.json` store file. Versioning policy, encoding
+  rules, tolerance contract, conformance criteria. Captures what
+  `kairo-edge-core` (Rust) and `kairo_edge` (Python) already emit;
+  the cross-runtime validator implementation lands with the fixtures
+  in a follow-up commit.
 
 ## Related, outside this folder
 
@@ -27,7 +34,10 @@ Navigation for everything that lives under `edge/`. The code lives at
 | Sub-phase | What | Status |
 |---|---|---|
 | 14e.0 | Rust workspace + `kairo-edge-core` v0.1 (types, BM25, JSON store) | ✅ shipped (`6cee66a`) |
-| 14e.1 | Kairo Protocol spec + validator | ⏳ next |
+| 14e.0.1 | `kairo-edge-cli` + `rust_smoke` emulator scenario | ✅ shipped (`f040363`) |
+| 14e.0.2 | PyO3 bridge — `kairo-edge-py` wheel + in-process emulator scenario | ✅ shipped (`a895802`) |
+| 14e.1 | Kairo Protocol spec v0.1 (doc-only) | ✅ this commit |
+| 14e.1.x | Cross-runtime validator + fixtures | ⏳ next |
 | 14e.2 | `DeviceProfile` + `ProviderCapability` manifests | ⏳ |
 | 14e.3 | `EdgePipeline` (BM25 + RRF + optional cosine) | ⏳ |
 | 14e.4 | `EdgeGraph` (pure-Rust walk, no networkx) | ⏳ |
