@@ -42,7 +42,10 @@ def _scenario(ctx: EmulatorContext) -> Dict[str, Any]:
     return {
         "backend": "rust-edge-pipeline",
         "profile_name": pipeline.profile_name,
+        "selected_provider": resp.selected_provider,
         "provider_used": resp.provider,
+        "used_fallback": resp.used_fallback,
+        "provider_error": resp.provider_error,
         "provider_chain": pipeline.provider_names,
         "cited_node_ids": list(resp.cited_node_ids),
         "evidence_count": len(resp.evidences),

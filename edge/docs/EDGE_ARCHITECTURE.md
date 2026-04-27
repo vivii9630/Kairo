@@ -1,6 +1,6 @@
 # Kairo Edge Architecture (KEA)
 
-**Status:** in progress (14e.0 shipped) · **Owner:** kairo-edge package · **Last updated:** 2026-04-23
+**Status:** in progress (14e.4 scaffold) · **Owner:** kairo-edge package · **Last updated:** 2026-04-25
 
 This document is the production plan for running Kairo on edge devices —
 phones, Raspberry Pis, Chromebooks, browsers, and in-process embedded
@@ -12,6 +12,36 @@ Everything in this plan lands inside the `edge/` package. Heavy
 dependencies stay in their original packages; nothing from `edge/` is
 allowed to reach up into pandas, torch, statsmodels, or any C-extension
 that won't build on ARM without pain.
+
+---
+
+## Current implementation plan
+
+The active milestone is local answering on Raspberry Pi and mobile-class
+devices. The implementation stays Rust-first: `kairo-edge-core` owns
+BM25 retrieval, device/provider capability selection, `EdgePipeline`,
+and provider traits; Python uses PyO3 bindings where available.
+
+The current 14e.4 work adds a capability-gated `LlamaCppProvider`
+scaffold plus `llm_smoke` emulator coverage. This is intentionally not
+real model inference yet: it proves provider selection, prompt shaping,
+and soft fallback to `ExtractiveProvider` without making
+`kairo-edge-core` depend on a heavy C++ model runtime. Real GGUF
+inference lands in 14e.4.1 behind an optional boundary and
+`KAIRO_EDGE_LLAMA_MODEL`.
+
+Important implementation rules:
+
+- `kairo-edge-core` remains lightweight by default.
+- Extractive answering is always available and is the fallback on every
+  profile.
+- Pipeline responses must report both the selected provider and the
+  provider that actually produced the answer.
+- Python `kairo_edge.EdgeStore` should prefer the Rust PyO3 backend when
+  installed and fall back to the pure-Python store otherwise.
+- True microcontroller support is deferred to a future retrieval-only
+  Rust/C track; the first practical targets are Raspberry Pi / embedded
+  Linux and mobile-class devices.
 
 ---
 
@@ -40,9 +70,11 @@ quality degradation.
 
 ## 2. Design principles
 
-1. **Zero heavy dependencies in the edge core.** Pure Python + optional
-   lightweight extras (`onnxruntime`, `llama-cpp-python`). No torch, no
-   pandas, no networkx, no C-extensions without pre-built ARM wheels.
+1. **Zero heavy dependencies in the edge core.** The canonical core is
+   Rust with only small runtime dependencies by default. LLM and
+   embedding backends live behind optional provider boundaries. No
+   torch, pandas, networkx, or mandatory C-extension dependency belongs
+   in the default edge install.
 
 2. **Spec first, implementation second.** A wire-format contract
    ([Kairo Protocol](./KAIRO_PROTOCOL.md)) defines the JSON/binary shape
@@ -203,65 +235,57 @@ once the PyO3 bindings crate lands.
 - Tests: 7 green (2 unit + 5 integration). Covered BM25 semantics,
   store round-trip, metadata preservation, Python-JSON interop.
 
-### Phase 14e.1 — Spec + validator (doc-first)
-- Write `edge/docs/KAIRO_PROTOCOL.md` — JSON schemas for graph,
-  snapshot, query, response, provider manifest.
-- Write `edge/src/kairo_edge/protocol.py` — reference validator that
-  checks Pydantic round-trip against the schemas.
-- Retrofit `kairo-core`'s existing serialization to validate against
-  the spec in CI.
-- **Deliverable:** spec document + passing validator on every existing
-  fixture.
+### ✅ Phase 14e.1 — Kairo Protocol v0.1 spec (shipped 2026-04-25, commit `bdd21c6`)
+- `edge/docs/KAIRO_PROTOCOL.md` captures the current wire shapes for
+  `Document`, `Evidence`, `QueryRequest`, `QueryResponse`, provider
+  capability manifests, device profiles, and `.kairo_edge.json`.
+- The validator and shared fixtures remain the next 14e.1.x follow-up.
 
-### Phase 14e.2 — DeviceProfile + ProviderCapability manifests
-- Add `edge/src/kairo_edge/capability.py` with `DeviceProfile.probe()`
-  and `ProviderCapability` dataclass.
-- Every existing provider gains a capability manifest file.
-- `select_provider(kind, profile)` picks best fit; falls back
-  gracefully when nothing fits.
-- **Deliverable:** tests that show `pi-zero` profile selects `bm25`
-  over `hybrid`, and `extractive-only` inference provider.
+### ✅ Phase 14e.2 — DeviceProfile + ProviderCapability + extractive provider (shipped, commit `e638ea2`)
+- `kairo-edge-core` owns `DeviceProfile`, `ProviderCapability`,
+  `ProviderKind`, and the `select_capability` algorithm.
+- `ExtractiveProvider` is the always-available inference fallback.
+- Selection tests prove Pi Zero chooses extractive while Pi 4/5 and
+  phone-mid can select richer providers when they fit.
 
-### Phase 14e.3 — EdgePipeline (BM25 + RRF + optional cosine)
-- Replace the current term-frequency `EdgeStore` with `EdgePipeline`
-  — same algorithms as `LocalPipeline` from `kairo-retrieval`, but
-  pure-Python (no numpy fallback path) and provider-driven.
-- BM25 implemented in pure Python (no `rank_bm25` dependency to
-  keep install tiny).
-- Cosine path activates only when an embedding provider is installed
-  and device profile allows.
-- **Deliverable:** `EdgePipeline` passes the same functional tests as
-  `LocalPipeline` on the eval harness, minus the numpy-bound paths.
+### ✅ Phase 14e.3 — EdgePipeline baseline (shipped, commit `3e1ba8b`)
+- `EdgePipeline` composes a Rust `EdgeStore`, a `DeviceProfile`, and a
+  candidate provider list.
+- Retrieval uses Rust BM25 today; extractive answering is the default.
+- PyO3 exposes the pipeline to Python for emulator scenarios and future
+  app shells.
 
-### Phase 14e.4 — EdgeGraph (pure-Python walk, no networkx)
-- `kairo_edge.graph.EdgeGraph` — minimal graph implementation (adj
-  lists + dicts), reads the Kairo Protocol wire format.
+### 🚧 Phase 14e.4 — LlamaCppProvider scaffold + fallback metadata (current work)
+- `LlamaCppProvider` declares the canonical small-LLM capability:
+  `min_ram_mb=800`, CPU-only, GGUF model path supplied by caller or
+  `KAIRO_EDGE_LLAMA_MODEL`.
+- `llm_smoke` exercises selection on Pi/mobile profiles and verifies
+  fallback on Pi Zero and missing-model cases.
+- `PipelineResponse` reports selected provider, provider actually used,
+  fallback state, provider error, evidences, and cited node ids.
+- Real llama.cpp execution is deliberately deferred to 14e.4.1 so the
+  default core crate does not acquire a heavy backend dependency.
+
+### Phase 14e.4.1 — Real llama.cpp / GGUF backend
+- Add the actual model runtime behind an optional boundary: either a
+  non-default Cargo feature or a sibling workspace crate that depends on
+  `kairo-edge-core`.
+- Use the existing prompt builder and context budget.
+- **Deliverable:** a gated real-model test runs only when
+  `KAIRO_EDGE_LLAMA_MODEL` points at a local GGUF file.
+
+### Phase 14e.5 — EdgeGraph (pure-Rust walk, no networkx)
+- Minimal graph representation (adjacency lists + attrs) that reads the
+  Kairo Protocol graph wire format.
 - 1-hop walk + BFS traversal matching `kairo-graph` semantics.
-- Optional Louvain implementation (pure Python, ~150 lines) for
-  community detection on-device.
 - **Deliverable:** round-trips `.kairo/` artifacts built by
   `kairo-graph`; walk results match on the same inputs.
 
-### Phase 14e.5 — ONNX embedding provider
-- `kairo_edge.providers.embeddings.OnnxEmbeddings` — quantized
-  `all-MiniLM-L6-v2` int8 (~25 MB model + `onnxruntime` ~60 MB
-  runtime).
-- Capability: `min_ram_mb=150`, `needs_gpu=False`, `arm_ok=True`.
-- Replaces `sentence-transformers` as the real-semantic default on
-  edge profiles.
-- **Deliverable:** `hybrid_default` eval harness config runs on
-  `pi-4` profile within memory budget.
-
-### Phase 14e.6 — Inference providers for edge
-- `kairo_edge.providers.inference.ExtractiveProvider` — no-LLM
-  fallback that returns top-k evidence as "answer".
-- `kairo_edge.providers.inference.LlamaCppProvider` —
-  `llama-cpp-python` bindings, gated on `needs_gpu=False`,
-  `min_ram_mb=800`.
-- `kairo_edge.providers.inference.LiteRtLmProvider` (stub for later) —
-  Google's runtime when/if Python bindings work on our targets.
-- **Deliverable:** `pi-zero` profile runs extractive end-to-end;
-  `pi-4` profile runs llama.cpp with a 1B quantized model.
+### Phase 14e.6 — ONNX embedding provider
+- Quantized MiniLM-style embeddings behind an optional provider
+  boundary, with profile-gated selection.
+- Replaces heavyweight `sentence-transformers` on edge profiles.
+- **Deliverable:** semantic retrieval runs within the Pi 4 memory budget.
 
 ### Phase 14e.7 — TypeScript shell (browser-first)
 - New `edge/ts/` directory (mirrors `edge/src/` structure).

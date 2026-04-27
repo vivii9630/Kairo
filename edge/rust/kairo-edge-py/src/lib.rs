@@ -14,9 +14,12 @@
 use std::cell::RefCell;
 use std::path::PathBuf;
 
+use std::sync::Arc;
+
 use kairo_edge_core::{
     self as core, DeviceProfile as CoreProfile, Document as CoreDocument,
     EdgePipeline as CorePipeline, EdgeStore as CoreStore, Evidence as CoreEvidence,
+    InferenceProvider as CoreInferenceProvider, LlamaCppProvider as CoreLlama,
     PipelineResponse as CorePipelineResponse, QueryRequest as CoreRequest,
     QueryResponse as CoreResponse,
 };
@@ -262,6 +265,21 @@ impl PipelineResponse {
     }
 
     #[getter]
+    fn selected_provider(&self) -> &str {
+        &self.inner.selected_provider
+    }
+
+    #[getter]
+    fn used_fallback(&self) -> bool {
+        self.inner.used_fallback
+    }
+
+    #[getter]
+    fn provider_error(&self) -> Option<String> {
+        self.inner.provider_error.clone()
+    }
+
+    #[getter]
     fn cited_node_ids(&self) -> Vec<String> {
         self.inner.cited_node_ids.clone()
     }
@@ -312,15 +330,33 @@ pub struct EdgePipeline {
 
 #[pymethods]
 impl EdgePipeline {
-    /// In-memory pipeline configured for *profile_name*. The
-    /// extractive provider is the only one wired today; LlamaCpp
-    /// lands in Phase 14e.4. Pass profile names from the canonical
-    /// set: pi-zero, pi-4, pi-5, phone-mid, browser-lite, browser-gpu.
+    /// In-memory pipeline configured for *profile_name*. Extractive
+    /// fallback is always wired in; the LLM track joins via
+    /// :py:meth:`with_llama_cpp`. Profile names: pi-zero, pi-4,
+    /// pi-5, phone-mid, browser-lite, browser-gpu.
     #[staticmethod]
     fn with_profile(profile_name: &str) -> PyResult<Self> {
         let profile = profile_from_name(profile_name)?;
         Ok(Self {
             inner: RefCell::new(CorePipeline::in_memory(profile)),
+        })
+    }
+
+    /// Pipeline that lists `LlamaCppProvider` first in the candidate
+    /// chain; selection picks it on Pi 4 / Pi 5 / phone-mid and skips
+    /// it on Pi Zero / browser-lite (RAM gate). When the underlying
+    /// llama.cpp backend isn't wired (14e.4 stub) or the model file
+    /// is missing, the pipeline soft-falls to extractive so callers
+    /// always get an evidence-grounded answer.
+    #[staticmethod]
+    #[pyo3(signature = (profile_name, model_path = None))]
+    fn with_llama_cpp(profile_name: &str, model_path: Option<PathBuf>) -> PyResult<Self> {
+        let profile = profile_from_name(profile_name)?;
+        let llama = Arc::new(CoreLlama::new(model_path)) as Arc<dyn CoreInferenceProvider>;
+        let store = CoreStore::in_memory();
+        let pipeline = CorePipeline::new(store, profile, vec![llama]);
+        Ok(Self {
+            inner: RefCell::new(pipeline),
         })
     }
 

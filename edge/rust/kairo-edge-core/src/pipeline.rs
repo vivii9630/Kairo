@@ -15,7 +15,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::capability::{select_capability, DeviceProfile, ProviderKind};
-use crate::providers::{ExtractiveProvider, InferenceProvider, ProviderError};
+use crate::providers::{ExtractiveProvider, InferenceProvider};
 use crate::store::EdgeStore;
 use crate::types::{Document, Evidence, QueryRequest};
 
@@ -26,7 +26,14 @@ use crate::types::{Document, Evidence, QueryRequest};
 pub struct PipelineResponse {
     pub answer: String,
     pub evidences: Vec<Evidence>,
+    /// Provider that produced `answer`.
     pub provider: String,
+    /// Provider selected by capability before execution. Differs from
+    /// `provider` when the selected provider errors and fallback runs.
+    pub selected_provider: String,
+    pub used_fallback: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_error: Option<String>,
     pub cited_node_ids: Vec<String>,
 }
 
@@ -103,11 +110,17 @@ impl EdgePipeline {
         let evidences = retrieval.evidences;
         let provider = self.pick_provider();
 
+        let selected_provider = provider.capability().name.clone();
+        let mut provider_used = selected_provider.clone();
+        let mut used_fallback = false;
+        let mut provider_error = None;
+
         let answer = match provider.answer(&request.query, &evidences) {
             Ok(a) => a,
-            Err(ProviderError::InvalidInput(_))
-            | Err(ProviderError::Backend(_))
-            | Err(ProviderError::Incompatible(_)) => {
+            Err(err) => {
+                used_fallback = true;
+                provider_error = Some(err.to_string());
+                provider_used = self.fallback.capability().name.clone();
                 // Soft-fall to extractive so callers always get an answer.
                 self.fallback
                     .answer(&request.query, &evidences)
@@ -121,7 +134,10 @@ impl EdgePipeline {
         PipelineResponse {
             answer,
             evidences,
-            provider: provider.capability().name.clone(),
+            provider: provider_used,
+            selected_provider,
+            used_fallback,
+            provider_error,
             cited_node_ids,
         }
     }
@@ -132,6 +148,7 @@ impl EdgePipeline {
 mod tests {
     use super::*;
     use crate::capability::ProviderCapability;
+    use crate::providers::ProviderError;
 
     fn make_docs() -> Vec<Document> {
         vec![
@@ -148,6 +165,9 @@ mod tests {
         p.add_documents(make_docs()).unwrap();
         let resp = p.query(&QueryRequest::new("felines hunting", 2));
         assert_eq!(resp.provider, "extractive");
+        assert_eq!(resp.selected_provider, "extractive");
+        assert!(!resp.used_fallback);
+        assert!(resp.provider_error.is_none());
         assert!(resp.cited_node_ids.contains(&"d2".to_string()));
         assert!(resp.answer.contains("[d2]"));
     }
@@ -189,6 +209,10 @@ mod tests {
         // Provider that would have been picked (the spy) errored,
         // but EdgePipeline.query falls back to extractive so the
         // user still gets evidence-grounded text.
+        assert_eq!(resp.selected_provider, "always-error");
+        assert_eq!(resp.provider, "extractive");
+        assert!(resp.used_fallback);
+        assert!(resp.provider_error.unwrap().contains("simulated failure"));
         assert!(resp.cited_node_ids.contains(&"d2".to_string()));
         assert!(resp.answer.contains("[d2]"));
     }
@@ -217,6 +241,9 @@ mod tests {
         let json = serde_json::to_string(&resp).unwrap();
         let back: PipelineResponse = serde_json::from_str(&json).unwrap();
         assert_eq!(resp.provider, back.provider);
+        assert_eq!(resp.selected_provider, back.selected_provider);
+        assert_eq!(resp.used_fallback, back.used_fallback);
+        assert_eq!(resp.provider_error, back.provider_error);
         assert_eq!(resp.cited_node_ids, back.cited_node_ids);
     }
 }

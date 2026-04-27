@@ -122,8 +122,7 @@ The input envelope for `EdgeStore.query`.
 
 ### 3.4 `QueryResponse`
 
-The output envelope from `EdgeStore.query` and any future
-`EdgePipeline.query`.
+The output envelope from `EdgeStore.query`.
 
 ```jsonc
 {
@@ -138,6 +137,35 @@ The output envelope from `EdgeStore.query` and any future
 | `answer`    | string      | yes      | —       | The synthesized answer. Extractive runtimes return concatenated evidence text; LLM-backed runtimes return the model's generation. |
 | `evidences` | Evidence[]  | yes      | —       | Top-k selected. Order is descending by relevance. May be empty. |
 | `steps`     | any[]       | no       | `[]`    | Reserved for future agent-trace payloads. v0.1 readers must accept any shape and pass it through. |
+
+### 3.5 `PipelineResponse`
+
+The output envelope from `EdgePipeline.query`. It extends
+`QueryResponse` with provider attribution so edge shells can explain
+whether an LLM answered directly or the pipeline fell back to
+extractive evidence.
+
+```jsonc
+{
+  "answer": "Felines hunt at dusk.",
+  "evidences": [ /* Evidence */ ],
+  "provider": "extractive",          // provider that produced answer
+  "selected_provider": "llama-cpp",  // provider selected by capability
+  "used_fallback": true,
+  "provider_error": "backend error: ...",
+  "cited_node_ids": ["abc123"]
+}
+```
+
+| Field               | Type       | Required | Default | Notes |
+|---------------------|------------|----------|---------|-------|
+| `answer`            | string     | yes      | —       | Final text returned to the caller. |
+| `evidences`         | Evidence[] | yes      | —       | Evidence used to answer. |
+| `provider`          | string     | yes      | —       | Provider that actually produced `answer`. On fallback this is usually `extractive`. |
+| `selected_provider` | string     | yes      | —       | Provider selected by capability before execution. May differ from `provider` when fallback was used. |
+| `used_fallback`     | bool       | yes      | `false` | True when the selected provider errored and `ExtractiveProvider` produced the final answer. |
+| `provider_error`    | string?    | no       | absent  | Human-readable selected-provider error. Present only when useful for diagnostics. |
+| `cited_node_ids`    | string[]   | yes      | `[]`    | Ordered IDs from the returned evidences. |
 
 ## 4. Store file format
 

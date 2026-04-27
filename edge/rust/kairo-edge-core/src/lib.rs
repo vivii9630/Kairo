@@ -34,6 +34,6 @@ pub use capability::{
     select_capability, DeviceProfile, ProviderCapability, ProviderKind,
 };
 pub use pipeline::{EdgePipeline, PipelineResponse};
-pub use providers::{ExtractiveProvider, InferenceProvider, ProviderError};
+pub use providers::{ExtractiveProvider, InferenceProvider, LlamaCppProvider, ProviderError};
 pub use store::EdgeStore;
 pub use types::{Document, Evidence, Metadata, QueryRequest, QueryResponse};

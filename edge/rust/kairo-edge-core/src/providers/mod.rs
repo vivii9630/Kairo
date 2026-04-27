@@ -5,6 +5,7 @@
 //! when ONNX (14e.5) and IndexedDB (later) need them.
 
 pub mod extractive;
+pub mod llama_cpp;
 
 use crate::types::Evidence;
 use crate::capability::ProviderCapability;
@@ -43,3 +44,4 @@ pub trait InferenceProvider: Send + Sync {
 }
 
 pub use extractive::ExtractiveProvider;
+pub use llama_cpp::LlamaCppProvider;
