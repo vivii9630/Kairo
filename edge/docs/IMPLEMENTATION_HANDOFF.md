@@ -1,6 +1,6 @@
 # Kairo Edge Implementation Handoff
 
-Last updated: 2026-04-25
+Last updated: 2026-04-30
 
 ## What changed in this work session
 
@@ -79,10 +79,41 @@ or the project `.venv` Python depending on how the prompt was opened, and
 PYTHONPATH path above sidesteps that ambiguity by not relying on any
 site-packages location at all.
 
+## Status — 2026-04-30 update
+
+- 14e.4 committed as `4357601`.
+- **14e.4.1 committed as `2529a83`.** The sibling crate
+  `kairo-edge-llama-cpp` is now in the workspace with a `real-backend`
+  Cargo feature gating `llama-cpp-2`. Default workspace tests are
+  green without LLVM (41 tests across the three crates).
+
+`cargo test --workspace` clean run (no `--features real-backend`,
+no LLVM/CMake required on the host):
+
+```
+kairo-edge-core           30 unit + 5 integration
+kairo-edge-llama-cpp       6 unit
+kairo-edge-py              0 unit (PyO3 surface; covered by emulator)
+kairo-edge-cli             0 unit (smoke covered by rust_smoke scenario)
+```
+
 ## Recommended next steps
 
-1. Add/update tests for Python `EdgeStore` backend selection (rust vs python).
-2. Decide whether to commit current 14e.4 scaffold before starting real
-   llama.cpp integration. _(Done at commit time alongside this note.)_
-3. Begin 14e.4.1 — the actual `llama-cpp-2` backend, behind an optional
-   feature flag or sibling crate so the default core stays lightweight.
+1. Begin **14e.4.2** — wire `kairo-edge-llama-cpp::LlamaCppRuntime`
+   through PyO3 + `EdgePipeline` so `EdgePipeline.with_llama_cpp(profile,
+   model_path)` returns a runtime that actually generates instead of
+   falling back. Two sub-decisions for that commit:
+   - Should the PyO3 wheel itself gate on a Cargo feature, or should
+     real-backend integration ship as a separate optional wheel
+     (`kairo-edge-llama-cpp-py`)? The second is cleaner, since it
+     keeps the default `kairo-edge-py` install LLVM-free.
+   - `llm_smoke` needs an additional assertion for the
+     "real-backend-and-model-present" case. When neither is present,
+     keep current selection-and-fallback assertions.
+2. Decide whether to install LLVM (`winget install LLVM.LLVM`,
+   ~1.5 GB) on this machine to fully exercise `--features real-backend`
+   end-to-end. Without LLVM the structural commit is verifiable; the
+   compile loop just isn't.
+3. Add Python tests for `kairo_edge.EdgeStore` backend selection
+   (rust vs python) — was queued before 14e.4 commit, still
+   outstanding.
