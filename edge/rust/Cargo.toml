@@ -10,7 +10,11 @@
 
 [workspace]
 resolver = "2"
-members = ["kairo-edge-core", "kairo-edge-cli", "kairo-edge-py"]
+members = ["kairo-edge-core", "kairo-edge-cli", "kairo-edge-py", "kairo-edge-llama-cpp"]
+# kairo-edge-llama-cpp pulls llama-cpp-2 + a llama.cpp C++ build, so it's
+# excluded from the default cargo build/test loop. Opt in with
+# `cargo build -p kairo-edge-llama-cpp` (or pass --workspace explicitly).
+default-members = ["kairo-edge-core", "kairo-edge-cli", "kairo-edge-py"]
 
 [workspace.package]
 version = "0.1.0"

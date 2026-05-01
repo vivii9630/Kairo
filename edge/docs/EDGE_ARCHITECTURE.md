@@ -266,13 +266,39 @@ once the PyO3 bindings crate lands.
 - Real llama.cpp execution is deliberately deferred to 14e.4.1 so the
   default core crate does not acquire a heavy backend dependency.
 
-### Phase 14e.4.1 — Real llama.cpp / GGUF backend
-- Add the actual model runtime behind an optional boundary: either a
-  non-default Cargo feature or a sibling workspace crate that depends on
-  `kairo-edge-core`.
-- Use the existing prompt builder and context budget.
-- **Deliverable:** a gated real-model test runs only when
-  `KAIRO_EDGE_LLAMA_MODEL` points at a local GGUF file.
+### 🚧 Phase 14e.4.1 — `kairo-edge-llama-cpp` crate + opt-in `real-backend` feature (current work)
+
+The structural choice picked from §6.4.1's "either/or" is **both**: a
+sibling workspace crate `kairo-edge-llama-cpp` whose `real-backend`
+Cargo feature flips it from a structural stub to a real
+`llama-cpp-2`-backed inference runtime. Default features = empty so:
+
+- `cargo build` / `cargo test` from the workspace root build the stub
+  in <10s, no LLVM, no CMake. The stub `LlamaCppRuntime::answer()`
+  returns a clear `ProviderError::Backend` referring to the feature
+  flag, so the `EdgePipeline` soft-fall to `ExtractiveProvider`
+  exercises end-to-end as designed.
+- `cargo build -p kairo-edge-llama-cpp --features real-backend` pulls
+  `llama-cpp-2` + `llama-cpp-sys-2`. The first compile is 5–15 minutes
+  and requires LLVM (`LIBCLANG_PATH` for `bindgen`) plus CMake on the
+  build host.
+
+The integration test `tests/real_model.rs` is `#[cfg(feature =
+"real-backend")]` so the no-feature workspace test never tries to
+generate. With the feature on AND `KAIRO_EDGE_LLAMA_MODEL` set, the
+test loads the GGUF and asserts a non-empty answer.
+
+The PyO3 wrapper update + `EdgePipeline` integration (so
+`with_llama_cpp` returns a runtime that *actually generates* on
+profiles that support it) lands separately as **14e.4.2** so the
+LLVM-toolchain dependency stays opt-in for downstream Python users
+too.
+
+### Phase 14e.4.2 — Wire real backend through PyO3 + EdgePipeline
+- Plumb `LlamaCppRuntime` from `kairo-edge-llama-cpp` into the PyO3
+  wheel as an optional sub-crate or a runtime registration call.
+- Update `llm_smoke` to assert real generation when the feature +
+  model are present.
 
 ### Phase 14e.5 — EdgeGraph (pure-Rust walk, no networkx)
 - Minimal graph representation (adjacency lists + attrs) that reads the

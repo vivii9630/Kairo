@@ -1,0 +1,39 @@
+[package]
+name = "kairo-edge-llama-cpp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Real GGUF / llama.cpp inference backend for Kairo edge. The `real-backend` feature pulls llama-cpp-2 + its C/C++ toolchain. Default build is a structural stub so workspace tests never demand LLVM."
+
+# Without `real-backend` enabled this crate compiles fast and pure-Rust
+# — it's just kairo-edge-core + a stub `LlamaCppRuntime` whose
+# `answer()` returns a clear "feature not enabled" error. Turn on the
+# feature with `cargo build -p kairo-edge-llama-cpp --features real-backend`
+# to link against llama.cpp. That path requires LLVM/libclang (for
+# `bindgen`) and CMake (for `llama-cpp-sys-2`'s vendored llama.cpp build).
+
+[lib]
+name = "kairo_edge_llama_cpp"
+
+[dependencies]
+kairo-edge-core = { path = "../kairo-edge-core" }
+serde.workspace = true
+# Optional dep — the `real-backend` feature flips it on.
+# Pinning a specific minor — llama-cpp-2's API moves frequently and we
+# want reproducible builds rather than surprise breakage when crates.io
+# publishes a new minor.
+llama-cpp-2 = { version = "0.1", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = []
+# Pulls llama-cpp-2 and switches `LlamaCppRuntime` from stub to real
+# inference. Requires LLVM (`LIBCLANG_PATH`) + CMake on the build host.
+real-backend = ["dep:llama-cpp-2"]
+
+[lints.rust]
+unsafe_code = "forbid"
