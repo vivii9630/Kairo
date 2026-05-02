@@ -16,10 +16,23 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 kairo-edge-core = { path = "../kairo-edge-core" }
 serde_json.workspace = true
+# Optional dep — `real-llama-cpp` flips it on, which in turn pulls
+# llama-cpp-2 + llama-cpp-sys-2's C/C++ build. Default wheel build
+# stays LLVM-free.
+kairo-edge-llama-cpp = { path = "../kairo-edge-llama-cpp", optional = true }
 
 [dependencies.pyo3]
 version = "0.22"
 features = ["extension-module", "abi3-py39"]
+
+[features]
+default = []
+# Pulls kairo-edge-llama-cpp with its real-backend feature, so the
+# wheel ships a working LlamaCppRuntime instead of the soft-fall stub.
+# Build with: maturin develop --release --features real-llama-cpp
+# Requires LLVM (`LIBCLANG_PATH`) + CMake on the build host because
+# llama-cpp-sys-2 builds llama.cpp from source via bindgen + cmake.
+real-llama-cpp = ["dep:kairo-edge-llama-cpp", "kairo-edge-llama-cpp/real-backend"]
 
 [lints.rust]
 unsafe_code = "forbid"

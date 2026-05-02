@@ -41,8 +41,8 @@ Navigation for everything that lives under `edge/`. The code lives at
 | 14e.2 | `DeviceProfile` + `ProviderCapability` + extractive provider | ✅ shipped (`e638ea2`) |
 | 14e.3 | `EdgePipeline` with Rust BM25 + extractive baseline + PyO3 wrapper | ✅ shipped (`3e1ba8b`) |
 | 14e.4 | `LlamaCppProvider` scaffold + `llm_smoke` + explicit fallback metadata | ✅ shipped (`4357601`) |
-| 14e.4.1 | `kairo-edge-llama-cpp` crate + `real-backend` Cargo feature gating real `llama-cpp-2` | 🚧 current work |
-| 14e.4.2 | Wire real `LlamaCppRuntime` through PyO3 + `EdgePipeline` | ⏳ next |
+| 14e.4.1 | `kairo-edge-llama-cpp` crate + `real-backend` Cargo feature gating real `llama-cpp-2` | ✅ shipped (`2529a83`) |
+| 14e.4.2 | Wire real `LlamaCppRuntime` through PyO3 (`real-llama-cpp` feature on `kairo-edge-py`) + `llm_smoke` real-mode assertions | 🚧 current work |
 | 14e.5 | `EdgeGraph` (pure-Rust walk, no networkx) | ⏳ |
 | 14e.6 | ONNX embedding provider | ⏳ |
 | 14e.6.x | Inference provider expansion (LiteRT-LM / WebLLM adapters) | ⏳ |

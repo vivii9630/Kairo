@@ -294,11 +294,41 @@ profiles that support it) lands separately as **14e.4.2** so the
 LLVM-toolchain dependency stays opt-in for downstream Python users
 too.
 
-### Phase 14e.4.2 — Wire real backend through PyO3 + EdgePipeline
-- Plumb `LlamaCppRuntime` from `kairo-edge-llama-cpp` into the PyO3
-  wheel as an optional sub-crate or a runtime registration call.
-- Update `llm_smoke` to assert real generation when the feature +
-  model are present.
+### 🚧 Phase 14e.4.2 — Wire real backend through PyO3 + EdgePipeline (current work)
+
+`kairo-edge-py` gains a `real-llama-cpp` Cargo feature that pulls
+`kairo-edge-llama-cpp` with `real-backend` on. With the feature off
+(default), `EdgePipeline.with_llama_cpp(profile, model_path)` builds
+the scaffold soft-fall as before. With the feature on AND a readable
+GGUF, the same factory wraps a real `LlamaCppRuntime` so the LLM
+actually generates instead of always falling back. Selection / chain
+order / capability matrix are identical between the two modes — the
+only observable difference is that `provider == 'llama-cpp'` and
+`used_fallback == False` on capable profiles when the real backend is
+active.
+
+Build the LLM-enabled wheel with:
+
+```
+cd edge/rust/kairo-edge-py
+maturin build --release --features real-llama-cpp
+```
+
+(Requires LLVM with `LIBCLANG_PATH` and CMake on the build host —
+inherited from `kairo-edge-llama-cpp`'s `real-backend` feature.)
+
+`llm_smoke` now reads `kairo_edge_py.real_llama_cpp_available()` and
+adapts assertions:
+
+- Feature off OR no model: keep the existing soft-fall contract
+  (`selected=llama-cpp` / `used=extractive` / `used_fallback=True`
+  on Pi 4 / Pi 5 / phone-mid / browser-gpu).
+- Feature on AND model present: assert direct LLM generation
+  (`selected == used == 'llama-cpp'` / `used_fallback=False` /
+  non-empty answer).
+
+Default `cargo test --workspace` still 41 green; default wheel build
+still LLVM-free. The opt-in path is one feature flag and an env var.
 
 ### Phase 14e.5 — EdgeGraph (pure-Rust walk, no networkx)
 - Minimal graph representation (adjacency lists + attrs) that reads the

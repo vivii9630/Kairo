@@ -82,10 +82,14 @@ site-packages location at all.
 ## Status — 2026-04-30 update
 
 - 14e.4 committed as `4357601`.
-- **14e.4.1 committed as `2529a83`.** The sibling crate
-  `kairo-edge-llama-cpp` is now in the workspace with a `real-backend`
-  Cargo feature gating `llama-cpp-2`. Default workspace tests are
-  green without LLVM (41 tests across the three crates).
+- 14e.4.1 committed as `2529a83`.
+- **14e.4.2 in progress (this commit).** `kairo-edge-py` gains an
+  optional `real-llama-cpp` Cargo feature; with the feature on,
+  `EdgePipeline.with_llama_cpp(...)` swaps the scaffold for a real
+  `LlamaCppRuntime`. `llm_smoke` reads
+  `kairo_edge_py.real_llama_cpp_available()` and asserts real
+  generation when the feature + model are present, otherwise keeps
+  the existing soft-fall contract.
 
 `cargo test --workspace` clean run (no `--features real-backend`,
 no LLVM/CMake required on the host):

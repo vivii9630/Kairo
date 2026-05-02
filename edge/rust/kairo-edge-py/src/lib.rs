@@ -343,18 +343,25 @@ impl EdgePipeline {
     }
 
     /// Pipeline that lists `LlamaCppProvider` first in the candidate
-    /// chain; selection picks it on Pi 4 / Pi 5 / phone-mid and skips
-    /// it on Pi Zero / browser-lite (RAM gate). When the underlying
-    /// llama.cpp backend isn't wired (14e.4 stub) or the model file
-    /// is missing, the pipeline soft-falls to extractive so callers
-    /// always get an evidence-grounded answer.
+    /// chain; selection picks it on Pi 4 / Pi 5 / phone-mid / browser-gpu
+    /// and skips it on Pi Zero / browser-lite (RAM gate). When the
+    /// llama.cpp backend isn't wired (default wheel build, no
+    /// `real-llama-cpp` feature) or the model file is missing, the
+    /// pipeline soft-falls to extractive so callers always get an
+    /// evidence-grounded answer.
+    ///
+    /// When the wheel is built with `--features real-llama-cpp` AND
+    /// `model_path` is a readable GGUF, `LlamaCppRuntime` from
+    /// `kairo-edge-llama-cpp` is registered as the candidate instead
+    /// of the soft-fall scaffold — selection still chooses it the same
+    /// way; the difference is `answer()` produces real generation.
     #[staticmethod]
     #[pyo3(signature = (profile_name, model_path = None))]
     fn with_llama_cpp(profile_name: &str, model_path: Option<PathBuf>) -> PyResult<Self> {
         let profile = profile_from_name(profile_name)?;
-        let llama = Arc::new(CoreLlama::new(model_path)) as Arc<dyn CoreInferenceProvider>;
+        let provider = build_llama_provider(model_path)?;
         let store = CoreStore::in_memory();
-        let pipeline = CorePipeline::new(store, profile, vec![llama]);
+        let pipeline = CorePipeline::new(store, profile, vec![provider]);
         Ok(Self {
             inner: RefCell::new(pipeline),
         })
@@ -394,6 +401,54 @@ impl EdgePipeline {
 }
 
 // ---------------------------------------------------------------------------
+// Llama provider construction — real runtime when `real-llama-cpp` is
+// on, scaffold soft-fall otherwise. Capability + selection contract
+// is identical either way; only `answer()` behavior differs.
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "real-llama-cpp")]
+fn build_llama_provider(
+    model_path: Option<PathBuf>,
+) -> PyResult<Arc<dyn CoreInferenceProvider>> {
+    use kairo_edge_llama_cpp::LlamaCppRuntime;
+
+    // Attempt the real runtime when a model_path is supplied. On any
+    // load error, fall through to the scaffold so the pipeline's
+    // soft-fall semantics still apply — better to ship a grounded
+    // extractive answer than to fail the whole query.
+    if let Some(path) = model_path.as_ref() {
+        match LlamaCppRuntime::load(path) {
+            Ok(runtime) => return Ok(Arc::new(runtime) as Arc<dyn CoreInferenceProvider>),
+            Err(e) => {
+                eprintln!(
+                    "kairo-edge-py: real LlamaCppRuntime load failed ({e}); \
+                     falling back to scaffold so EdgePipeline soft-fall applies."
+                );
+            }
+        }
+    }
+    // No model_path or load failure → scaffold provider, same shape.
+    Ok(Arc::new(CoreLlama::new(model_path)) as Arc<dyn CoreInferenceProvider>)
+}
+
+#[cfg(not(feature = "real-llama-cpp"))]
+fn build_llama_provider(
+    model_path: Option<PathBuf>,
+) -> PyResult<Arc<dyn CoreInferenceProvider>> {
+    Ok(Arc::new(CoreLlama::new(model_path)) as Arc<dyn CoreInferenceProvider>)
+}
+
+/// True when the wheel was built with `--features real-llama-cpp`
+/// AND the underlying `kairo-edge-llama-cpp` crate had its
+/// `real-backend` feature on. Emulator scenarios use this to decide
+/// whether to assert non-empty real generation or stay on the
+/// soft-fall contract.
+#[pyfunction]
+fn real_llama_cpp_available() -> bool {
+    cfg!(feature = "real-llama-cpp")
+}
+
+// ---------------------------------------------------------------------------
 // Module entry point
 // ---------------------------------------------------------------------------
 
@@ -405,7 +460,9 @@ fn kairo_edge_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EdgeStore>()?;
     m.add_class::<PipelineResponse>()?;
     m.add_class::<EdgePipeline>()?;
+    m.add_function(wrap_pyfunction!(real_llama_cpp_available, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.add("__has_real_llama_cpp__", cfg!(feature = "real-llama-cpp"))?;
     Ok(())
 }
 
