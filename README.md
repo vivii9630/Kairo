@@ -87,6 +87,115 @@ Each package lives in its own directory with its own `pyproject.toml` and `READM
 
 ---
 
+## What's coming next — Phase 15: Workspace agents + cross-source graphs *(planned, not yet implemented)*
+
+> **Status:** design committed; no code in the tree yet. This section
+> announces the direction so callers integrating against `kairo-ai`
+> and `kairo-ui` can plan ahead.
+
+The next major milestone reshapes how Kairo represents work and who
+acts on it. Three concrete commitments drive the design:
+
+### 1. Specialist agents with a full schema
+
+Today's `Agent` is essentially a system-prompt + role string. Phase 15
+introduces `AgentSpec` — a fully-declared agent contract:
+
+| Field | Description |
+|---|---|
+| `name` | Stable identifier (`kairo-coder`, `kairo-reader`, `kairo-planner`, `kairo-architect`, `kairo-summariser`, `kairo-researcher`, …) |
+| `system_prompt` | Frozen instruction text |
+| `tools` | Subset of the global tool registry the agent is allowed to call |
+| `providers` | Inference provider chain the agent may use, in preference order |
+| `output_contract` | Pydantic schema the agent's final response must conform to |
+| `max_depth` | Hard cap on recursive sub-agent / tool calls |
+
+Specialists are first-class objects: they're registered, introspected,
+and bound to tasks deterministically. User-defined agents extend the
+same schema — there's no second-tier "user agent" type.
+
+### 2. Workspace graph + inter-graph edges with metadata
+
+Today's `KairoGraph` is one connected graph. Phase 15 adds:
+
+- **Typed workspace nodes**: `FileNode`, `FolderNode`, `SymbolNode`,
+  `RepoNode`, `ThreadNode`, `MessageNode`, `CommitNode`, `PRNode`,
+  alongside the existing document/concept/detail layer. Each node
+  knows what kind of source it came from.
+- **Multi-top-level graphs (a graph forest)**: a workspace can hold
+  several independent top-level graphs — one per source — that may
+  remain isolated or get linked. A GitHub repo graph and a Slack
+  conversation graph are first-class siblings, not merged.
+- **`InterGraphEdge` type**: a dedicated edge variant with
+  `source_graph_id`, `target_graph_id`, `bridge_kind` (`mentions` /
+  `references` / `replies-to` / `commits-touch-file` / …),
+  `provenance`, `confidence`. These are the edges retrieval walks
+  when a query spans sources.
+
+This shape preserves provenance ("this answer crossed from a Slack
+thread into a code symbol") rather than collapsing everything into
+one homogeneous blob.
+
+### 3. Hybrid planning — deterministic for graph, LLM for tasks
+
+The Phase 7c `Supervisor` is fully deterministic (graph topology →
+agent count → role assignment). Phase 15 keeps that for
+graph-structural decisions and adds an LLM-driven task planner on top:
+
+- **Deterministic layer (unchanged)**: given a query and a graph
+  topology, decide *how many* agents and *which structural roles*
+  they fill. This is reproducible, cheap, and auditable.
+- **LLM-driven layer (new)**: given a multi-step task (e.g. "find the
+  Slack thread that motivated this PR, then refactor the function it
+  touches"), `kairo-planner` emits an explicit plan as a graph of
+  agent invocations + tool calls. The orchestrator dispatches
+  according to the plan and writes findings back into the workspace
+  graph.
+
+The two layers compose: the LLM planner's output is itself a
+structural problem the deterministic supervisor can validate before
+execution.
+
+### What this means for `kairo-ai` (backend) and `kairo-ui` (UI)
+
+Both layers operate against the same primitives going forward:
+
+- `kairo-ai` will expose:
+  - `GET /agents` — registered specialist agents and their `AgentSpec`
+  - `GET /tools` — global tool registry (extends today's `/plugins`)
+  - `GET /workspace` — workspace graph forest with isolation /
+    bridge metadata
+  - `POST /plan` — submits a task, returns the planner's emitted
+    plan-graph for inspection before `/execute`
+  - `POST /execute` — runs the plan, streams agent steps + writes
+    back into the workspace graph
+  - `POST /events` — implicit feedback signals (regenerate / copy /
+    follow-up) for Phase 12 STDP integration
+- `kairo-ui` gains:
+  - Specialist agent picker that reflects `AgentSpec.tools` /
+    `providers` so a user can preview which agents will be eligible
+    for a given task
+  - Multi-graph workspace viewer with subgraph isolation rendered
+    explicitly and `InterGraphEdge`s shown as bridge lines
+  - Plan-graph preview before execution (the LLM-emitted plan
+    visualized as a small DAG, with structural validation status)
+  - Live trace of which agents are active, which tools they're
+    calling, and which nodes they're writing back into the graph
+
+Existing endpoints (`/ask`, `/ingest`, `/threads`, `/ask/stream`)
+stay supported — Phase 15 adds capability rather than breaking the
+current flow. Anything depending on the in-tree `kairo-ai` /
+`kairo-ui` should track these endpoints when they appear; nothing
+ships in this commit beyond the announcement.
+
+A full design doc lands at `docs/phase15_workspace_agents.md` ahead
+of code (planned next). Phases 12 (STDP) and 13b3 (`ExtractorProvider`)
+are explicit prerequisites: Phase 15 agents are specialised
+extractors with output contracts, and STDP feedback drives the
+planner's policy refinement over time.
+
+---
+
 ## Temporal RAG engine *(in build)*
 
 Kairo is being extended with a **temporal RAG engine** that turns any project directory — docs, CSVs, source code, or a GitHub URL — into a durable, time-aware knowledge base. Point Kairo at a folder, and every time the content changes it writes a new versioned snapshot of the knowledge graph into a local `.kairo/` directory. Agents can then query the current state, roll back to any prior point in time, branch off alternate histories, or ask "what changed between these two versions?"
