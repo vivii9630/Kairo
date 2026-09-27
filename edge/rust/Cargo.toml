@@ -20,7 +20,7 @@ default-members = ["kairo-edge-core", "kairo-edge-cli", "kairo-edge-py"]
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-license = "MIT"
+license = "Apache-2.0"
 repository = "https://github.com/vivii9630/Kairo"
 
 [workspace.dependencies]

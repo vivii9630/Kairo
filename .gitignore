@@ -1,12 +1,29 @@
+# --- Python ---
 .venv/
-.kairo_store.json
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+.pytest_cache/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+client_secret*.json
+token*.json
+
+# --- Kairo runtime artifacts ---
+.kairo_store.json
+.kairo-run/
 *.db
+
+# --- Rust (edge) ---
+target/
+
+# --- Tooling / OS ---
+.claude/
 .DS_Store
 Thumbs.db
-tests/
-*.egg-info/
-.claude/

@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Kairo analytics: charts, descriptive stats, forecasting, and ML helpers. Consumes the AnalyticsPlan contract from kairo-core."
 readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
 dependencies = [
     "kairo-core",
     "pandas>=2.0",

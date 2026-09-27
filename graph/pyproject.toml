@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Kairo graph: GraphBuilder protocol, KairoGraph (NetworkX-backed) with deterministic hashing and JSON round-trip, plus per-content-type builders."
 readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
 dependencies = [
     "kairo-core",
     "kairo-embeddings",

@@ -10,7 +10,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/vivii9630/Kairo?style=flat&logo=github)](https://github.com/vivii9630/Kairo/network/members)
 [![GitHub issues](https://img.shields.io/github/issues/vivii9630/Kairo)](https://github.com/vivii9630/Kairo/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/vivii9630/Kairo)](https://github.com/vivii9630/Kairo/pulls)
-[![License: MIT](https://img.shields.io/github/license/vivii9630/Kairo)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![Status](https://img.shields.io/badge/status-alpha-orange)](https://github.com/vivii9630/Kairo)
 

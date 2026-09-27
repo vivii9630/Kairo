@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "kairo-edge-py"
 description = "PyO3 bindings for kairo-edge-core — Rust-backed EdgeStore exposed to Python."
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 # Version must stay in sync with Cargo.toml version.workspace.
 version = "0.1.0"
 classifiers = [

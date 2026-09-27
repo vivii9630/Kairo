@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Kairo ingest: multi-format document loaders (txt, jsonl, csv, xlsx, pdf, docx, audio)."
 readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
 dependencies = [
     "kairo-core",
     "pandas>=2.2",
