@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Documentation for all fourteen Kairo packages: install paths, the dependency DAG, runnable examples, and the bitemporal roadmap.">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Kairo Package Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #11161f;
+    --body: #333c4a;
+    --muted: #5f6b7c;
+    --paper: #f6f7f9;
+    --surface: #ffffff;
+    --sunk: #eef0f4;
+    --line: #dde2ea;
+    --line-soft: #e8ebf1;
+    /* the two time axes — used as semantic color throughout */
+    --valid: #0d7d82;
+    --valid-soft: #e2f1f1;
+    --tx: #6152a0;
+    --tx-soft: #ebe8f6;
+    --warn: #9a5b12;
+    --warn-soft: #f7edde;
+    --code-bg: #141a24;
+    --code-fg: #d9e0ea;
+    --code-dim: #7c8ba0;
+
+    --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+
+    --sidebar: 252px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ink: #eef2f7;
+      --body: #c3ccd8;
+      --muted: #8e9aaa;
+      --paper: #0d121a;
+      --surface: #141b25;
+      --sunk: #1a222e;
+      --line: #28323f;
+      --line-soft: #202a36;
+      --valid: #43b3b7;
+      --valid-soft: #10302f;
+      --tx: #a294e0;
+      --tx-soft: #221d3a;
+      --warn: #d8a25c;
+      --warn-soft: #2e2314;
+      --code-bg: #090d13;
+      --code-fg: #ccd5e1;
+      --code-dim: #6b7a8f;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ink: #eef2f7;
+    --body: #c3ccd8;
+    --muted: #8e9aaa;
+    --paper: #0d121a;
+    --surface: #141b25;
+    --sunk: #1a222e;
+    --line: #28323f;
+    --line-soft: #202a36;
+    --valid: #43b3b7;
+    --valid-soft: #10302f;
+    --tx: #a294e0;
+    --tx-soft: #221d3a;
+    --warn: #d8a25c;
+    --warn-soft: #2e2314;
+    --code-bg: #090d13;
+    --code-fg: #ccd5e1;
+    --code-dim: #6b7a8f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--body);
+    font-family: var(--serif);
+    font-size: 16.5px;
+    line-height: 1.68;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell { display: flex; align-items: flex-start; }
+
+  /* ---------- sidebar ---------- */
+  .sidebar {
+    width: var(--sidebar);
+    flex: 0 0 var(--sidebar);
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    height: 100vh;
+    overflow-y: auto;
+    padding: 30px 20px 40px 26px;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    font-family: var(--sans);
+  }
+  .brand { display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px; }
+  .brand b {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink);
+  }
+  .brand span {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px;
+  }
+  .brand-sub {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    letter-spacing: 0.02em; margin: 0 0 26px;
+  }
+  .nav-group { margin-bottom: 20px; }
+  .nav-label {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.11em; color: var(--muted); margin-bottom: 8px;
+  }
+  .sidebar a {
+    display: block; padding: 4px 9px; margin-left: -9px;
+    border-radius: 5px; text-decoration: none;
+    color: var(--body); font-size: 13.5px; line-height: 1.5;
+  }
+  .sidebar a:hover { background: var(--sunk); color: var(--ink); }
+  .sidebar a code {
+    font-family: var(--mono); font-size: 12px; background: none; padding: 0; color: inherit;
+  }
+
+  /* ---------- main ---------- */
+  main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 56px 40px 100px;
+  }
+  .col { max-width: 74ch; margin: 0 auto; }
+
+  h1 {
+    font-family: var(--sans); font-weight: 700; font-size: clamp(32px, 5vw, 44px);
+    line-height: 1.1; letter-spacing: -0.03em; color: var(--ink);
+    margin: 0 0 14px; text-wrap: balance;
+  }
+  h2 {
+    font-family: var(--sans); font-weight: 600; font-size: 25px; letter-spacing: -0.02em;
+    color: var(--ink); margin: 60px 0 14px; padding-top: 22px;
+    border-top: 1px solid var(--line-soft); text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--sans); font-weight: 600; font-size: 17px; letter-spacing: -0.01em;
+    color: var(--ink); margin: 32px 0 8px;
+  }
+  p { margin: 0 0 15px; }
+  a { color: var(--valid); }
+
+  .lede { font-size: 19px; line-height: 1.6; color: var(--body); }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.13em; color: var(--muted); margin: 0 0 12px;
+  }
+
+  code {
+    font-family: var(--mono); font-size: 0.87em;
+    background: var(--sunk); padding: 1.5px 5px; border-radius: 4px; color: var(--ink);
+  }
+
+  pre {
+    background: var(--code-bg); color: var(--code-fg);
+    font-family: var(--mono); font-size: 13px; line-height: 1.62;
+    padding: 16px 18px; border-radius: 8px; overflow-x: auto;
+    margin: 0 0 18px; border: 1px solid var(--line);
+  }
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  .c { color: var(--code-dim); }
+  .k { color: #a294e0; }
+  .s { color: #7fc8a9; }
+  .f { color: #6fb6d6; }
+
+  /* two-axis semantic marks */
+  .t-valid { color: var(--valid); font-weight: 600; }
+  .t-tx { color: var(--tx); font-weight: 600; }
+
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  /* ---------- package cards ---------- */
+  .filterbar {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin: 0 0 22px; font-family: var(--sans);
+  }
+  .filterbar input {
+    flex: 1 1 200px; min-width: 0;
+    font-family: var(--sans); font-size: 14px;
+    padding: 9px 12px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  }
+  .filterbar input:focus-visible { outline: 2px solid var(--valid); outline-offset: 1px; }
+  .count { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+  .pkg {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px 22px; margin-bottom: 14px;
+  }
+  .pkg[hidden] { display: none !important; }
+  .pkg-head {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 2px;
+  }
+  .pkg-head h3 { margin: 0; font-family: var(--mono); font-size: 15.5px; font-weight: 600; }
+  .tier {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+    color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 1px 8px;
+  }
+  .pkg p { font-size: 15px; margin: 6px 0 12px; }
+  .meta {
+    display: grid; grid-template-columns: 74px 1fr; gap: 4px 12px;
+    font-family: var(--mono); font-size: 11.5px; margin-bottom: 14px;
+  }
+  .meta dt { color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; padding-top: 2px; }
+  .meta dd { margin: 0; color: var(--body); overflow-wrap: anywhere; }
+  .pkg pre { margin-bottom: 0; }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border-left: 3px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 7px 7px 0; margin: 0 0 20px;
+  }
+  .note p { margin: 0; font-size: 15px; }
+  .note strong { color: var(--ink); font-family: var(--sans); }
+
+  /* ---------- axis table ---------- */
+  .axis {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 22px;
+  }
+  .axis > div {
+    border: 1px solid var(--line); border-radius: 9px; padding: 16px 18px;
+    background: var(--surface);
+  }
+  .axis .ax-v { border-top: 3px solid var(--valid); }
+  .axis .ax-t { border-top: 3px solid var(--tx); }
+  .axis h4 {
+    font-family: var(--mono); font-size: 12px; margin: 0 0 6px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .axis .ax-v h4 { color: var(--valid); }
+  .axis .ax-t h4 { color: var(--tx); }
+  .axis p { font-size: 14.5px; margin: 0; }
+
+  .scroll { overflow-x: auto; margin: 0 0 22px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-family: var(--sans); }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+  th {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); font-weight: 500;
+  }
+  td code { font-size: 12.5px; }
+
+  figure { margin: 0 0 8px; }
+  figcaption {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    text-align: center; margin-top: 4px;
+  }
+  .dagwrap { overflow-x: auto; }
+  svg { display: block; max-width: 100%; }
+
+  footer {
+    margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+  }
+
+  @media (max-width: 860px) {
+    .sidebar {
+      position: static; height: auto; width: 100%; flex: 1 1 auto;
+      border-right: none; border-bottom: 1px solid var(--line);
+      padding: 22px 18px 18px;
+    }
+    .shell { display: block; }
+    main { padding: 34px 18px 70px; }
+    .nav-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0 16px; }
+    .axis { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand"><b>Kairo</b><span>v0.1.0</span></div>
+    <p class="brand-sub">14 packages · Python ≥3.9</p>
+
+    <div class="nav-cols">
+      <div class="nav-group">
+        <div class="nav-label">Start</div>
+        <a href="#install">Install</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="#dag">Dependency map</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Foundation</div>
+        <a href="#kairo-core"><code>kairo-core</code></a>
+        <a href="#kairo-embeddings"><code>kairo-embeddings</code></a>
+        <a href="#kairo-ingest"><code>kairo-ingest</code></a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Knowledge</div>
+        <a href="#kairo-graph"><code>kairo-graph</code></a>
+        <a href="#kairo-retrieval"><code>kairo-retrieval</code></a>
+        <a href="#kairo-temporal"><code>kairo-temporal</code></a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Reasoning</div>
+        <a href="#kairo-agents"><code>kairo-agents</code></a>
+        <a href="#kairo-rag"><code>kairo-rag</code></a>
+        <a href="#kairo-flow"><code>kairo-flow</code></a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Surface</div>
+        <a href="#kairo-connectors"><code>kairo-connectors</code></a>
+        <a href="#kairo-analytics"><code>kairo-analytics</code></a>
+        <a href="#kairo-edge"><code>kairo-edge</code></a>
+        <a href="#kairo-cli"><code>kairo-cli</code></a>
+        <a href="#kairo-ai"><code>kairo-ai</code></a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Direction</div>
+        <a href="#bitemporal">Bitemporal model</a>
+        <a href="#recipes">Recipes</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="col">
+      <p class="eyebrow">Package reference</p>
+      <h1>Kairo Package Atlas</h1>
+      <p class="lede">Kairo is a retrieval-native temporal engine for agents and evolving knowledge graphs. It ships as fourteen independent packages on a strict dependency DAG — install the three you need, or the whole stack.</p>
+
+      <h2 id="install">Install</h2>
+      <p>Every package is versioned and released separately. Nothing imports upward, so a package never drags the stack in behind it. The smallest useful install is retrieval over local files:</p>
+<pre><code><span class="c"># lexical retrieval over PDFs, CSVs, and docs</span>
+pip install kairo-core kairo-ingest kairo-retrieval
+
+<span class="c"># add graph construction and versioned history</span>
+pip install kairo-graph kairo-temporal
+
+<span class="c"># the full engine — agents, 3-layer RAG, connectors</span>
+pip install kairo-agents kairo-rag kairo-connectors</code></pre>
+
+      <p>For local development across the monorepo, install each package in editable mode from its own directory:</p>
+<pre><code>pip install -e core -e embeddings -e ingest -e graph \
+            -e retrieval -e temporal -e agents -e rag</code></pre>
+
+      <h2 id="quickstart">Quickstart</h2>
+      <p>Three lines to a working retrieval loop. <code>LocalPipeline</code> runs BM25 over tokens, persists to a JSON store, and returns evidence with scores and provenance.</p>
+<pre><code><span class="k">from</span> pathlib <span class="k">import</span> Path
+<span class="k">from</span> kairo_core <span class="k">import</span> QueryRequest
+<span class="k">from</span> kairo_retrieval <span class="k">import</span> LocalPipeline
+
+pipeline = <span class="f">LocalPipeline</span>(store_path=<span class="f">Path</span>(<span class="s">"kairo_store.json"</span>))
+pipeline.<span class="f">ingest_paths</span>([<span class="f">Path</span>(<span class="s">"handbook.pdf"</span>), <span class="f">Path</span>(<span class="s">"policies.csv"</span>)])
+
+response = pipeline.<span class="f">query</span>(<span class="f">QueryRequest</span>(query=<span class="s">"What is the refund window?"</span>, top_k=<span class="s">5</span>))
+<span class="f">print</span>(response.answer)
+<span class="k">for</span> ev <span class="k">in</span> response.evidences:
+    <span class="f">print</span>(ev.document_id, <span class="f">round</span>(ev.score, <span class="s">3</span>))</code></pre>
+
+      <p>Add an embedding provider and retrieval becomes hybrid — BM25 and cosine similarity fused by Reciprocal Rank Fusion at <code>k=60</code>:</p>
+<pre><code><span class="k">from</span> kairo_embeddings <span class="k">import</span> get_provider
+
+pipeline = <span class="f">LocalPipeline</span>(
+    store_path=<span class="f">Path</span>(<span class="s">"kairo_store.json"</span>),
+    embedding_provider=<span class="f">get_provider</span>(),   <span class="c"># resolves the default backend</span>
+    hop_decay=<span class="s">0.5</span>,                       <span class="c"># graph-walk score decay per hop</span>
+)</code></pre>
+
+      <div class="note">
+        <p><strong>On the hash-stub provider.</strong> With no <code>embedding_provider</code>, the pipeline stays BM25-only by design. The built-in hash stub carries no semantic signal and is never used as a similarity proxy — it exists for deterministic tests.</p>
+      </div>
+
+      <h2 id="dag">Dependency map</h2>
+      <p>The layering is enforced, not conventional: <code>kairo-core</code> depends on nothing but Pydantic, and each tier may only import from tiers below it. This is what makes a partial install coherent.</p>
+
+      <figure>
+        <div class="dagwrap">
+          <svg viewBox="0 0 700 330" width="700" height="330" role="img" aria-label="Dependency graph: kairo-core at the base, feeding five mid-tier packages, which feed graph, retrieval and flow, which feed temporal, rag and cli, which feed kairo-ai at the top.">
+            <defs>
+              <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L8 4 L0 8 z" fill="var(--line)"/>
+              </marker>
+            </defs>
+            <g stroke="var(--line)" stroke-width="1.4" fill="none" marker-end="url(#ar)">
+              <path d="M350 288 L90 250"/><path d="M350 288 L220 250"/><path d="M350 288 L350 252"/>
+              <path d="M350 288 L480 250"/><path d="M350 288 L610 250"/>
+              <path d="M90 216 L150 182"/><path d="M220 216 L180 182"/>
+              <path d="M90 216 L330 182"/><path d="M350 216 L360 182"/>
+              <path d="M150 148 L175 114"/><path d="M350 148 L330 114"/>
+              <path d="M350 148 L470 114"/><path d="M150 148 L560 114"/>
+              <path d="M180 80 L330 48"/><path d="M340 80 L350 48"/>
+              <path d="M480 80 L370 48"/>
+            </g>
+            <g font-family="IBM Plex Mono, monospace" font-size="11.5" text-anchor="middle">
+              <!-- tier 0 -->
+              <g><rect x="282" y="288" width="136" height="26" rx="6" fill="var(--valid-soft)" stroke="var(--valid)" stroke-width="1.4"/>
+                 <text x="350" y="305" fill="var(--valid)" font-weight="600">kairo-core</text></g>
+              <!-- tier 1 -->
+              <g fill="var(--body)">
+                <rect x="24" y="224" width="132" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="90" y="241">kairo-embeddings</text>
+                <rect x="166" y="224" width="108" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="220" y="241">kairo-ingest</text>
+                <rect x="292" y="224" width="116" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="350" y="241">kairo-agents</text>
+                <rect x="420" y="224" width="124" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="482" y="241">kairo-connectors</text>
+                <rect x="556" y="224" width="120" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="616" y="241">kairo-analytics</text>
+              </g>
+              <!-- tier 2 -->
+              <g fill="var(--body)">
+                <rect x="96" y="156" width="110" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="151" y="173">kairo-graph</text>
+                <rect x="286" y="156" width="124" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="348" y="173">kairo-retrieval</text>
+                <rect x="494" y="156" width="104" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="546" y="173">kairo-flow</text>
+              </g>
+              <!-- tier 3 -->
+              <g>
+                <rect x="112" y="88" width="126" height="26" rx="6" fill="var(--tx-soft)" stroke="var(--tx)" stroke-width="1.4"/><text x="175" y="105" fill="var(--tx)" font-weight="600">kairo-temporal</text>
+                <rect x="286" y="88" width="94" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="333" y="105" fill="var(--body)">kairo-rag</text>
+                <rect x="428" y="88" width="92" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="474" y="105" fill="var(--body)">kairo-cli</text>
+                <rect x="534" y="88" width="102" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="585" y="105" fill="var(--body)">kairo-edge</text>
+              </g>
+              <!-- tier 4 -->
+              <g><rect x="300" y="22" width="100" height="26" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+                 <text x="350" y="39" fill="var(--body)">kairo-ai</text></g>
+            </g>
+          </svg>
+        </div>
+        <figcaption>Arrows point from a package to what depends on it. No cycles, no upward imports.</figcaption>
+      </figure>
+
+      <h2 id="packages">The fourteen packages</h2>
+      <p>Filter by name, responsibility, or exported symbol.</p>
+
+      <div class="filterbar">
+        <input id="q" type="search" placeholder="Filter packages — try &ldquo;snapshot&rdquo;, &ldquo;embed&rdquo;, or &ldquo;agent&rdquo;" aria-label="Filter packages">
+        <span class="count" id="count">14 of 14</span>
+      </div>
+
+      <div id="pkgs">
+
+        <section class="pkg" id="kairo-core" data-k="core types document evidence message snapshot pydantic contract graphnode graphedge temporalquery traversaltrace">
+          <div class="pkg-head"><h3>kairo-core</h3><span class="tier">tier 0</span></div>
+          <p>Every shared type in the system. It depends only on Pydantic, so any package can import it without pulling in numpy, pandas, or networkx. Data contracts live here even when the implementation lives elsewhere — <code>AnalyticsPlan</code> is defined in core, but only <code>kairo-analytics</code> touches pandas.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>pydantic ≥2.6</dd>
+            <dt>Exports</dt><dd>Document · Evidence · Message · QueryRequest · QueryResponse · RetrievalResult · AgentStep · GraphNode · GraphEdge · GraphData · GraphDiff · Snapshot · HistoryNode · BranchRef · TemporalQuery · InterLayerEdge · LayeredGraphData · TraversalStep · TraversalTrace · AnalyticsPlan · ChartSpec · ForecastSpec · ExtractionResult · CitationReport</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_core <span class="k">import</span> Document, TemporalQuery
+
+doc = <span class="f">Document</span>(id=<span class="s">"hb-04"</span>, text=<span class="s">"Refunds within 30 days."</span>,
+               metadata={<span class="s">"source"</span>: <span class="s">"handbook.pdf"</span>, <span class="s">"page"</span>: <span class="s">4</span>})
+
+q = <span class="f">TemporalQuery</span>(query=<span class="s">"refund window"</span>, mode=<span class="s">"walk"</span>, branch=<span class="s">"main"</span>, top_k=<span class="s">5</span>)</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-embeddings" data-k="embeddings vector provider registry numpy cosine store sentence-transformers ollama openai">
+          <div class="pkg-head"><h3>kairo-embeddings</h3><span class="tier">tier 1</span></div>
+          <p>A provider registry and a numpy-backed store with cosine top-k. Providers register by name, so swapping sentence-transformers for Ollama or a hosted API is a config change, never a code change.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · numpy ≥1.24</dd>
+            <dt>Exports</dt><dd>EmbeddingProvider · EmbeddingStore · Credentials · get_provider · register_provider · available_providers</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_embeddings <span class="k">import</span> get_provider, EmbeddingStore, available_providers
+
+<span class="f">print</span>(<span class="f">available_providers</span>())      <span class="c"># ['hash', 'sentence-transformers', ...]</span>
+
+provider = <span class="f">get_provider</span>(<span class="s">"sentence-transformers"</span>)
+store = <span class="f">EmbeddingStore</span>(provider.dim)
+store.<span class="f">add_many</span>((d.id, provider.<span class="f">embed</span>(d.text)) <span class="k">for</span> d <span class="k">in</span> docs)
+
+<span class="k">for</span> node_id, score <span class="k">in</span> store.<span class="f">similar</span>(provider.<span class="f">embed</span>(<span class="s">"refunds"</span>), k=<span class="s">5</span>):
+    <span class="f">print</span>(node_id, <span class="f">round</span>(score, <span class="s">3</span>))
+
+store.<span class="f">save</span>(<span class="s">"matrix.npy"</span>, <span class="s">"index.json"</span>)</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-ingest" data-k="ingest loaders pdf docx csv excel jsonl audio text pandas documents">
+          <div class="pkg-head"><h3>kairo-ingest</h3><span class="tier">tier 1</span></div>
+          <p>Format loaders that all return <code>List[Document]</code>. <code>ingest_any</code> dispatches on file extension, so callers rarely need the specific loaders.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · pandas · pypdf · python-docx · openpyxl · soundfile</dd>
+            <dt>Exports</dt><dd>ingest_any · ingest_text_file · ingest_jsonl · ingest_csv · ingest_excel · ingest_pdf · ingest_docx · ingest_audio</dd>
+          </dl>
+<pre><code><span class="k">from</span> pathlib <span class="k">import</span> Path
+<span class="k">from</span> kairo_ingest <span class="k">import</span> ingest_any, ingest_excel
+
+docs = <span class="f">ingest_any</span>(<span class="f">Path</span>(<span class="s">"handbook.pdf"</span>))        <span class="c"># dispatches by extension</span>
+rows = <span class="f">ingest_excel</span>(<span class="f">Path</span>(<span class="s">"q3.xlsx"</span>), source=<span class="s">"finance"</span>)</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-graph" data-k="graph networkx builder layered leiden communities provenance extractor ollama hashing concepts">
+          <div class="pkg-head"><h3>kairo-graph</h3><span class="tier">tier 2</span></div>
+          <p>Graph construction and the 3-layer decomposition. <code>KairoGraph</code> wraps a NetworkX <code>DiGraph</code> behind a narrow interface so the backing store can become Kuzu or Memgraph later without touching call sites. Deterministic SHA-256 hashing is what lets <code>kairo-temporal</code> skip writing a snapshot when nothing changed.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-embeddings · networkx</dd>
+            <dt>Exports</dt><dd>KairoGraph · LayeredKairoGraph · GraphBuilder · LayeredGraphBuilder · DocumentGraphBuilder · DocumentLayeredBuilder · LLMExtractedGraphBuilder · ExtractorProvider · OllamaExtractor · detect_communities · add_concept_nodes · summarize_community · edge_attrs · save_graph · load_graph</dd>
+          </dl>
+          <p>The three layers are <code>document</code> (sections, headings, files), <code>semantic</code> (concepts and themes), and <code>detail</code> (data points and evidence). Edges within a layer are <code>GraphEdge</code>; edges between layers are <code>InterLayerEdge</code>, so traversal can tell "going deeper" from "going sideways".</p>
+<pre><code><span class="k">from</span> kairo_graph <span class="k">import</span> DocumentLayeredBuilder, detect_communities, add_concept_nodes
+
+graph = <span class="f">DocumentLayeredBuilder</span>().<span class="f">build</span>(docs)
+<span class="f">print</span>(graph.<span class="f">hash</span>())              <span class="c"># stable content address</span>
+
+communities = <span class="f">detect_communities</span>(graph)   <span class="c"># Leiden, if igraph is installed</span>
+<span class="f">add_concept_nodes</span>(graph, communities)</code></pre>
+          <p>Every edge carries a provenance tag — <code>structural</code>, <code>extracted</code>, <code>inferred</code>, or <code>ambiguous</code> — so a citation can distinguish a heading hierarchy from an LLM's guess.</p>
+        </section>
+
+        <section class="pkg" id="kairo-retrieval" data-k="retrieval bm25 rrf fusion cosine hybrid local pipeline hosted client graph walk hop decay">
+          <div class="pkg-head"><h3>kairo-retrieval</h3><span class="tier">tier 2</span></div>
+          <p>The retrieval layer: a local pipeline with persistence and a thin HTTP client for a hosted deployment. Ranking is BM25 fused with cosine similarity via Reciprocal Rank Fusion, then boosted along graph edges with a per-hop decay.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-embeddings · rank-bm25 · numpy</dd>
+            <dt>Exports</dt><dd>LocalPipeline · HostedClient</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_core <span class="k">import</span> QueryRequest
+<span class="k">from</span> kairo_retrieval <span class="k">import</span> LocalPipeline, HostedClient
+
+local = <span class="f">LocalPipeline</span>(
+    store_path=<span class="s">"kairo_store.json"</span>,
+    embedding_provider=provider,
+    graph_neighbors=graph.<span class="f">neighbors</span>,   <span class="c"># optional graph-walk boost</span>
+    hop_decay=<span class="s">0.5</span>,
+)
+result = local.<span class="f">query</span>(<span class="f">QueryRequest</span>(query=<span class="s">"refund window"</span>, top_k=<span class="s">5</span>,
+                                filters={<span class="s">"source"</span>: <span class="s">"handbook.pdf"</span>}))
+
+hosted = <span class="f">HostedClient</span>(base_url=<span class="s">"https://api.example.com"</span>, api_key=key)</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-temporal" data-k="temporal snapshot history dag branch rollback diff walker kairo store commit checkout time travel">
+          <div class="pkg-head"><h3>kairo-temporal</h3><span class="tier">tier 3</span></div>
+          <p>Git-shaped version control for knowledge graphs. A <code>.kairo/</code> directory holds <code>HEAD</code>, branch refs, a history DAG, and one directory per snapshot containing the graph and its embeddings. Branching is native — <code>Snapshot.parents</code> is a list, so merges and forks are schema-level, not a later migration.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-graph · kairo-embeddings</dd>
+            <dt>Exports</dt><dd>KairoStore · SnapshotBuilder · HistoryGraph · HistoryWalker · diff_graphs · snapshot_id_from_hash</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_temporal <span class="k">import</span> KairoStore, SnapshotBuilder, diff_graphs
+
+store = KairoStore.<span class="f">init</span>(<span class="s">"."</span>, history_graph_id=<span class="s">"handbook"</span>)
+builder = <span class="f">SnapshotBuilder</span>(history_graph_id=<span class="s">"handbook"</span>, builder_name=<span class="s">"layered"</span>)
+
+snap = builder.<span class="f">build</span>(graph, message=<span class="s">"Q3 policy import"</span>)
+store.<span class="f">commit</span>(snap, graph, embeddings)      <span class="c"># advances the current branch</span>
+
+<span class="c"># branch, then reconstruct a past state</span>
+store.<span class="f">set_branch</span>(<span class="s">"experiment"</span>, snap.id)
+store.<span class="f">checkout_branch</span>(<span class="s">"experiment"</span>)
+old_snap, old_graph, old_emb = store.<span class="f">rollback</span>(prior_id)
+
+<span class="f">print</span>(<span class="f">diff_graphs</span>(old_graph, graph).added_nodes)</code></pre>
+          <p>The <code>.kairo/</code> layout on disk:</p>
+<pre><code>.kairo/
+├── HEAD                      <span class="c"># "ref: refs/branches/main", or a bare id when detached</span>
+├── refs/branches/&lt;name&gt;
+├── history.json              <span class="c"># the snapshot DAG</span>
+└── snapshots/&lt;snapshot_id&gt;/
+    ├── snapshot.json
+    ├── graph.json
+    └── embeddings/{matrix.npy, index.json}</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-agents" data-k="agents supervisor messagebus delegate subagent roles topology plan explorer analyzer validator synthesizer">
+          <div class="pkg-head"><h3>kairo-agents</h3><span class="tier">tier 1</span></div>
+          <p>Agents, inter-agent messaging, and a supervisor that sizes the team to the problem. The supervisor reads graph topology statistics and decides how many agents to run and in which roles — a dense, tangled region gets more explorers than a shallow one.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core</dd>
+            <dt>Exports</dt><dd>Agent · MessageBus · Supervisor · AgentTask · TaskPlan · ROLE_EXPLORER · ROLE_ANALYZER · ROLE_SYNTHESIZER · ROLE_VALIDATOR · ROLE_WEB_RESEARCHER</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_agents <span class="k">import</span> Agent, MessageBus, Supervisor
+
+<span class="k">def</span> <span class="f">llm_think</span>(role, instruction, user_input):
+    <span class="k">return</span> my_model.<span class="f">complete</span>(<span class="s">f"{instruction}\n\n{user_input}"</span>)
+
+bus = <span class="f">MessageBus</span>()
+analyst = <span class="f">Agent</span>(<span class="s">"analyst"</span>, role=<span class="s">"research analyst"</span>,
+                instruction=<span class="s">"Cite evidence for every claim."</span>,
+                think_fn=llm_think, bus=bus, verbose=<span class="k">True</span>)
+
+analyst.<span class="f">add_subagent</span>(<span class="f">Agent</span>(<span class="s">"checker"</span>, role=<span class="s">"fact checker"</span>,
+                              instruction=<span class="s">"Flag unsupported claims."</span>, bus=bus))
+analyst.<span class="f">delegate</span>(<span class="s">"checker"</span>, <span class="s">"Verify the refund window claim."</span>)
+
+plan: TaskPlan = <span class="f">Supervisor</span>().<span class="f">plan</span>(query, trace)   <span class="c"># topology-scaled team</span></code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-rag" data-k="rag temporal engine orchestrator session snapshot traversal knn walk cluster citation web enrichment tavily">
+          <div class="pkg-head"><h3>kairo-rag</h3><span class="tier">tier 3</span></div>
+          <p>Where retrieval, graphs, and agents meet. <code>TemporalRAGEngine</code> builds a 3-layer graph, embeds each layer separately, runs KNN seeding plus BFS expansion, and snapshots the result into a session so follow-up queries reuse the graph instead of rebuilding it.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-graph · kairo-embeddings · kairo-retrieval · kairo-agents</dd>
+            <dt>Exports</dt><dd>TemporalRAGEngine · RAGResult · MultiAgentOrchestrator · SessionStore · GraphSnapshot · LayerEmbeddingStore · EngineRunner · EngineResult · AgentFinding · WebEnricher · CitationVerifier · graph_walk · knn_search · cluster_visited_nodes</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_embeddings <span class="k">import</span> get_provider
+<span class="k">from</span> kairo_rag <span class="k">import</span> TemporalRAGEngine, CitationVerifier
+
+engine = <span class="f">TemporalRAGEngine</span>(
+    <span class="f">get_provider</span>(),
+    top_k=<span class="s">5</span>,                 <span class="c"># nearest neighbours per layer</span>
+    walk_depth=<span class="s">2</span>,             <span class="c"># BFS hops from each seed</span>
+    max_nodes_per_layer=<span class="s">30</span>,   <span class="c"># expansion budget</span>
+)
+
+result = engine.<span class="f">query</span>(<span class="s">"How did the refund policy change?"</span>, docs,
+                      session_id=<span class="s">"user-42"</span>, reuse_snapshot=<span class="k">True</span>)
+
+<span class="f">print</span>(result.trace.visited_nodes)    <span class="c"># drives the 3D visualisation</span>
+report = <span class="f">CitationVerifier</span>().<span class="f">verify</span>(result.answer, result.evidences)</code></pre>
+          <p>The <code>TraversalTrace</code> on every result records each visit, expansion, and layer crossing — it is both the audit trail and the data source for the frontend graph view.</p>
+        </section>
+
+        <section class="pkg" id="kairo-flow" data-k="flow graph cycles nodes retrieval node identity plan critique retry loop">
+          <div class="pkg-head"><h3>kairo-flow</h3><span class="tier">tier 2</span></div>
+          <p>Directed graphs of agent and tool steps, <em>with cycles</em>. Plan → critique → retry is a first-class topology here rather than something bolted onto a DAG runner.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-retrieval</dd>
+            <dt>Exports</dt><dd>FlowGraph · FlowNode · retrieval_node · identity_node</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_flow <span class="k">import</span> FlowGraph, retrieval_node, identity_node
+
+flow = <span class="f">FlowGraph</span>()
+flow.<span class="f">add_node</span>(<span class="f">retrieval_node</span>(<span class="s">"retrieve"</span>, pipeline))
+flow.<span class="f">add_node</span>(<span class="f">identity_node</span>(<span class="s">"critique"</span>))
+flow.<span class="f">add_edge</span>(<span class="s">"retrieve"</span>, <span class="s">"critique"</span>)
+flow.<span class="f">add_edge</span>(<span class="s">"critique"</span>, <span class="s">"retrieve"</span>)   <span class="c"># cycles are legal</span></code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-connectors" data-k="connectors plugin manifest gmail slack gdrive github outlook google calendar oauth credentials fetch">
+          <div class="pkg-head"><h3>kairo-connectors</h3><span class="tier">tier 1</span></div>
+          <p>External data sources behind one <code>ConnectorPlugin</code> protocol. Each plugin declares a <code>PluginManifest</code> — what it is and what credentials to prompt for — so the UI can render a connection form without knowing the plugin exists.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core</dd>
+            <dt>Exports</dt><dd>ConnectorPlugin · PluginManifest · FetchSpec · FetchResult · registry</dd>
+            <dt>Plugins</dt><dd>gmail · outlook · slack · gdrive · github · google_calendar</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_connectors.registry <span class="k">import</span> get_plugin, available_plugins
+
+<span class="f">print</span>(<span class="f">available_plugins</span>())
+
+plugin = <span class="f">get_plugin</span>(<span class="s">"gmail"</span>)
+<span class="f">print</span>(plugin.manifest.required_credentials)
+
+result: FetchResult = plugin.<span class="f">fetch</span>(spec, credentials)
+docs = result.documents      <span class="c"># List[Document], ready for any builder</span></code></pre>
+          <p>Adding a source means adding a package, not editing a switch statement — the point of the modular split.</p>
+        </section>
+
+        <section class="pkg" id="kairo-analytics" data-k="analytics charts bar line scatter histogram forecast regression cluster pandas plan statistics">
+          <div class="pkg-head"><h3>kairo-analytics</h3><span class="tier">tier 1</span></div>
+          <p>Charts, descriptive statistics, forecasting, and small ML helpers. This is the only package that imports pandas — the <code>AnalyticsPlan</code> and <code>ChartSpec</code> contracts live in <code>kairo-core</code>, so the UI and API can speak analytics without the dependency.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · pandas ≥2.0</dd>
+            <dt>Exports</dt><dd>planner · charts (bar · line · scatter · histogram) · forecasting · ml (regression · cluster)</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_core <span class="k">import</span> AnalyticsPlan
+<span class="k">from</span> kairo_analytics.planner <span class="k">import</span> plan_analytics, run_plan
+
+plan: AnalyticsPlan = <span class="f">plan_analytics</span>(<span class="s">"revenue by quarter, forecast 2 ahead"</span>, df)
+result = <span class="f">run_plan</span>(plan, df)
+<span class="f">print</span>(result.chart.kind, result.stats)</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-edge" data-k="edge arm mobile rust pyo3 llama cpp minimal store offline embedded no pandas">
+          <div class="pkg-head"><h3>kairo-edge</h3><span class="tier">tier 3</span></div>
+          <p>The ARM and mobile build. No pandas, no pypdf, no httpx — just a store and a retrieval path light enough for a phone. A Rust core (<code>kairo-edge-core</code>) is the canonical runtime, reached through PyO3 when <code>kairo_edge_py</code> is installed; the pure-Python store is the fallback.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core</dd>
+            <dt>Exports</dt><dd>EdgeStore</dd>
+            <dt>Rust</dt><dd>kairo-edge-core · kairo-edge-llama-cpp (feature-gated)</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_edge <span class="k">import</span> EdgeStore
+
+store = <span class="f">EdgeStore</span>(<span class="s">"edge.json"</span>)   <span class="c"># Rust backend if available, else pure Python</span>
+store.<span class="f">add</span>(docs)
+hits = store.<span class="f">search</span>(<span class="s">"refund window"</span>, k=<span class="s">3</span>)</code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-cli" data-k="cli typer command line ingest query terminal rich hosted local">
+          <div class="pkg-head"><h3>kairo-cli</h3><span class="tier">tier 3</span></div>
+          <p>A Typer app over the local pipeline and the hosted client. Two commands cover the whole loop.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-ingest · kairo-retrieval · typer · rich</dd>
+            <dt>Exports</dt><dd>app</dd>
+          </dl>
+<pre><code><span class="c"># ingest any supported format into a local store</span>
+kairo ingest handbook.pdf --store kairo_store.json
+
+<span class="c"># query it</span>
+kairo query <span class="s">"What is the refund window?"</span> --mode local --top-k 5
+
+<span class="c"># or point at a hosted deployment</span>
+kairo query <span class="s">"refund window"</span> --mode hosted \
+    --base-url https://api.example.com --api-key <span class="s">$KAIRO_KEY</span></code></pre>
+        </section>
+
+        <section class="pkg" id="kairo-ai" data-k="ai fastapi backend api server app sse streaming workspace threads orchestrator ui">
+          <div class="pkg-head"><h3>kairo-ai</h3><span class="tier">tier 4</span></div>
+          <p>The FastAPI backend that the chat UI talks to: connector manifests, threads, the answer endpoint, and SSE streaming. It sits at the top of the DAG and imports from nearly every other package, which is exactly why nothing imports <em>it</em>.</p>
+          <dl class="meta">
+            <dt>Depends</dt><dd>kairo-core · kairo-rag · kairo-retrieval · kairo-embeddings · kairo-agents · kairo-connectors · kairo-analytics · fastapi</dd>
+            <dt>Exports</dt><dd>create_app</dd>
+          </dl>
+<pre><code><span class="k">from</span> kairo_ai <span class="k">import</span> create_app
+
+app = <span class="f">create_app</span>()
+
+<span class="c"># uvicorn kairo_ai.app:create_app --factory --reload --port 8000</span></code></pre>
+        </section>
+
+      </div>
+
+      <h2 id="bitemporal">The bitemporal model</h2>
+      <p>Kairo today versions the graph the way git versions a tree: each snapshot records <em>when it was committed</em>. That answers "what did the graph look like on Tuesday?" — one axis of time.</p>
+      <p>A bitemporal engine carries two independent axes on every fact, and the second one is what makes corrections and audits possible:</p>
+
+      <div class="axis">
+        <div class="ax-v">
+          <h4>valid time</h4>
+          <p>When the fact was true in the world. The refund window was 30 days <em>from January through June</em>.</p>
+        </div>
+        <div class="ax-t">
+          <h4>transaction time</h4>
+          <p>When Kairo came to believe it. We recorded that window <em>in September</em>, after a late document import.</p>
+        </div>
+      </div>
+
+      <p>With both axes, a fact becomes an assertion over two intervals, and retraction means closing a <span class="t-tx">transaction</span> interval rather than deleting a row:</p>
+<pre><code><span class="k">class</span> <span class="f">Interval</span>(BaseModel):
+    start: datetime
+    end: Optional[datetime] = <span class="k">None</span>        <span class="c"># None = still open</span>
+
+<span class="k">class</span> <span class="f">TemporalFact</span>(BaseModel):
+    valid: Interval    <span class="c"># when it was true in the world</span>
+    tx: Interval       <span class="c"># when Kairo believed it</span></code></pre>
+
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Question</th><th>Axes needed</th><th>Available today</th></tr></thead>
+          <tbody>
+            <tr><td>What does the graph say now?</td><td>—</td><td>Yes</td></tr>
+            <tr><td>What did the graph look like on Tuesday?</td><td><span class="t-tx">tx</span></td><td>Yes — snapshots</td></tr>
+            <tr><td>What was true in January?</td><td><span class="t-valid">valid</span></td><td>Not yet</td></tr>
+            <tr><td>What did we believe in March about January?</td><td><span class="t-valid">valid</span> × <span class="t-tx">tx</span></td><td>Not yet</td></tr>
+            <tr><td>Re-answer a past question with today's knowledge</td><td><span class="t-valid">valid</span> × <span class="t-tx">tx</span></td><td>Not yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <p><strong>Status.</strong> The two-axis model is the current design direction, not shipped API. <code>Snapshot.timestamp</code> in <code>kairo-core</code> is transaction time only, and it sits on the snapshot rather than on individual nodes and edges. Treat this section as the roadmap it is.</p>
+      </div>
+
+      <h2 id="recipes">Recipes</h2>
+
+      <h3>Versioned RAG over a changing corpus</h3>
+      <p>Build a layered graph, commit it, answer from it, then commit again when the corpus changes and diff the two.</p>
+<pre><code><span class="k">from</span> kairo_embeddings <span class="k">import</span> get_provider
+<span class="k">from</span> kairo_graph <span class="k">import</span> DocumentLayeredBuilder
+<span class="k">from</span> kairo_ingest <span class="k">import</span> ingest_any
+<span class="k">from</span> kairo_rag <span class="k">import</span> TemporalRAGEngine
+<span class="k">from</span> kairo_temporal <span class="k">import</span> KairoStore, SnapshotBuilder, diff_graphs
+
+provider = <span class="f">get_provider</span>()
+store = KairoStore.<span class="f">init</span>(<span class="s">"."</span>, history_graph_id=<span class="s">"corpus"</span>)
+snapper = <span class="f">SnapshotBuilder</span>(history_graph_id=<span class="s">"corpus"</span>, builder_name=<span class="s">"layered"</span>)
+engine = <span class="f">TemporalRAGEngine</span>(provider)
+
+docs = <span class="f">ingest_any</span>(<span class="f">Path</span>(<span class="s">"handbook_v1.pdf"</span>))
+graph = <span class="f">DocumentLayeredBuilder</span>().<span class="f">build</span>(docs)
+v1 = snapper.<span class="f">build</span>(graph, message=<span class="s">"v1 import"</span>)
+store.<span class="f">commit</span>(v1, graph)
+
+answer = engine.<span class="f">query_from_graph</span>(<span class="s">"refund window"</span>, graph)
+
+<span class="c"># ... corpus changes ...</span>
+docs2 = <span class="f">ingest_any</span>(<span class="f">Path</span>(<span class="s">"handbook_v2.pdf"</span>))
+graph2 = <span class="f">DocumentLayeredBuilder</span>().<span class="f">build</span>(docs2)
+v2 = snapper.<span class="f">build</span>(graph2, parents=[v1.id], message=<span class="s">"v2 import"</span>)
+store.<span class="f">commit</span>(v2, graph2)
+
+delta = <span class="f">diff_graphs</span>(graph, graph2)
+<span class="f">print</span>(delta.added_nodes, delta.removed_nodes, delta.changed_nodes)</code></pre>
+
+      <h3>Bring your own embedding backend</h3>
+<pre><code><span class="k">from</span> kairo_embeddings <span class="k">import</span> register_provider, get_provider
+
+<span class="k">class</span> <span class="f">MyProvider</span>:
+    dim = <span class="s">1024</span>
+    <span class="k">def</span> <span class="f">embed</span>(self, text: str):
+        <span class="k">return</span> my_client.<span class="f">encode</span>(text)
+
+<span class="f">register_provider</span>(<span class="s">"mine"</span>, MyProvider)
+provider = <span class="f">get_provider</span>(<span class="s">"mine"</span>)</code></pre>
+
+      <h3>Retrieval that follows graph edges</h3>
+      <p>Pass a neighbour function into the pipeline and lexical hits propagate score to their graph neighbours, decayed per hop.</p>
+<pre><code>pipeline = <span class="f">LocalPipeline</span>(
+    store_path=<span class="s">"store.json"</span>,
+    embedding_provider=provider,
+    graph_neighbors=<span class="k">lambda</span> node_id: graph.<span class="f">neighbors</span>(node_id),
+    hop_decay=<span class="s">0.5</span>,      <span class="c"># a 2-hop neighbour keeps 25% of the seed's score</span>
+)</code></pre>
+
+      <footer>
+        Kairo v0.1.0 · Apache-2.0 · Python ≥3.9 · 14 packages on a strict dependency DAG
+      </footer>
+    </div>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var input = document.getElementById('q');
+    var count = document.getElementById('count');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.pkg'));
+    var total = cards.length;
+
+    function apply() {
+      var term = input.value.trim().toLowerCase();
+      var shown = 0;
+      cards.forEach(function (card) {
+        var hay = (card.id + ' ' + (card.dataset.k || '') + ' ' + card.textContent).toLowerCase();
+        var match = !term || hay.indexOf(term) !== -1;
+        card.hidden = !match;
+        if (match) shown++;
+      });
+      count.textContent = shown + ' of ' + total;
+    }
+
+    input.addEventListener('input', apply);
+    apply();
+  })();
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 
 **A retrieval-native temporal engine for agents, RAG, and evolving knowledge graphs.**
 
-[Repository](https://github.com/vivii9630/Kairo) · [Documentation](docs/) · [Issues](https://github.com/vivii9630/Kairo/issues) · [License](LICENSE)
+[Repository](https://github.com/vivii9630/Kairo) · [**Documentation**](https://vivii9630.github.io/Kairo/) · [Issues](https://github.com/vivii9630/Kairo/issues) · [License](LICENSE)
 
 [![GitHub stars](https://img.shields.io/github/stars/vivii9630/Kairo?style=flat&logo=github)](https://github.com/vivii9630/Kairo/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/vivii9630/Kairo?style=flat&logo=github)](https://github.com/vivii9630/Kairo/network/members)
